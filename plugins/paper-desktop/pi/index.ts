@@ -70,9 +70,21 @@ function mapContent(block: any): any {
 	}
 }
 
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+	let timeout: ReturnType<typeof setTimeout> | undefined;
+	return Promise.race([
+		promise,
+		new Promise<T>((_, reject) => {
+			timeout = setTimeout(() => reject(new Error(message)), ms);
+		}),
+	]).finally(() => clearTimeout(timeout));
+}
+
 export default function (pi: ExtensionAPI) {
 	let client: Client | null = null;
 	let connecting: Promise<ConnectResult> | null = null;
+	let disposed = false;
+	let closePending: (() => Promise<void>) | null = null;
 	const registeredTools = new Set<string>();
 
 	function registerPaperTool(c: Client, tool: McpTool): void {
@@ -115,21 +127,30 @@ export default function (pi: ExtensionAPI) {
 		});
 	}
 
-	function attemptConnect(): Promise<ConnectResult> {
-		if (client) return Promise.resolve({ ok: true, toolCount: registeredTools.size });
+	function attemptConnect(force = false): Promise<ConnectResult> {
+		if (disposed) return Promise.resolve({ ok: false, toolCount: 0, error: "session is shutting down" });
+		if (client && !force) return Promise.resolve({ ok: true, toolCount: registeredTools.size });
 		if (connecting) return connecting;
 
 		connecting = (async (): Promise<ConnectResult> => {
+			// Drop any stale client before reconnecting.
+			if (client) {
+				const stale = client;
+				client = null;
+				await stale.close().catch(() => {});
+			}
+
 			const c = new Client({ name: "pi-paper-desktop", version: "0.1.0" });
 			const transport = new StreamableHTTPClientTransport(new URL(paperUrl()));
+			closePending = () => c.close().catch(() => {});
 			try {
-				let timeout: ReturnType<typeof setTimeout> | undefined;
-				await Promise.race([
-					c.connect(transport),
-					new Promise((_, reject) => {
-						timeout = setTimeout(() => reject(new Error("connection timed out")), CONNECT_TIMEOUT_MS);
-					}),
-				]).finally(() => clearTimeout(timeout));
+				await withTimeout(c.connect(transport), CONNECT_TIMEOUT_MS, "connection timed out");
+
+				// The session may have been shut down while connecting.
+				if (disposed) {
+					await c.close().catch(() => {});
+					return { ok: false, toolCount: 0, error: "session is shutting down" };
+				}
 
 				// Note: if the server ever paginates tools, this needs a cursor loop.
 				const { tools } = (await c.listTools()) as { tools: McpTool[] };
@@ -138,14 +159,31 @@ export default function (pi: ExtensionAPI) {
 				return { ok: true, toolCount: tools.length };
 			} catch (err) {
 				client = null;
-				void transport.close().catch(() => {});
+				await c.close().catch(() => {});
 				return { ok: false, toolCount: 0, error: err instanceof Error ? err.message : String(err) };
 			} finally {
+				closePending = null;
 				connecting = null;
 			}
 		})();
 
 		return connecting;
+	}
+
+	/**
+	 * Verify the cached client is still alive; reconnect from scratch if Paper
+	 * Desktop was restarted or the MCP session dropped underneath us.
+	 */
+	async function ensureLiveConnection(): Promise<ConnectResult> {
+		if (client) {
+			try {
+				await withTimeout(client.ping(), CONNECT_TIMEOUT_MS, "ping timed out");
+				return { ok: true, toolCount: registeredTools.size };
+			} catch {
+				// Dead client — fall through to a forced reconnect.
+			}
+		}
+		return attemptConnect(true);
 	}
 
 	// Always available so the LLM can diagnose and restore the connection
@@ -158,7 +196,7 @@ export default function (pi: ExtensionAPI) {
 		promptSnippet: "Check or restore the Paper Desktop connection",
 		parameters: Type.Object({}),
 		async execute() {
-			const result = await attemptConnect();
+			const result = await ensureLiveConnection();
 			if (result.ok) {
 				const names = [...registeredTools].filter((n) => n !== "paper_status").join(", ");
 				return {
@@ -186,7 +224,7 @@ export default function (pi: ExtensionAPI) {
 	pi.registerCommand("paper-reconnect", {
 		description: "Reconnect to Paper Desktop and refresh paper_* tools",
 		handler: async (_args, ctx) => {
-			const result = await attemptConnect();
+			const result = await attemptConnect(true);
 			if (!ctx.hasUI) return;
 			if (result.ok) {
 				ctx.ui.notify(`Paper: connected — ${result.toolCount} tools`, "info");
@@ -207,9 +245,13 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("session_shutdown", async () => {
+		disposed = true;
+		const pending = closePending;
+		closePending = null;
 		const c = client;
 		client = null;
 		registeredTools.clear();
+		if (pending) await pending();
 		if (c) await c.close().catch(() => {});
 	});
 }
