@@ -2,6 +2,7 @@
   "name": "agent-plugins",
   "type": "module",
   "private": true,
+  "keywords": ["pi-package"],
   "scripts": {
     "build": "bun ./scripts/validate-cursor-schema.mjs && bun ./scripts/validate-cursor-structure.mjs && bun ./scripts/validate-codex.mjs"
   },
@@ -11,6 +12,15 @@
     "ajv-formats": "^3.0.1"
   },
   "peerDependencies": {
-    "typescript": "^5"
+    "typescript": "^5",
+    "@earendil-works/pi-coding-agent": "*",
+    "typebox": "*"
+  },
+  "pi": {
+    "extensions": ["./plugins/paper-desktop/pi"],
+    "skills": ["./plugins/paper-desktop/skills"]
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0"
   }
 }
