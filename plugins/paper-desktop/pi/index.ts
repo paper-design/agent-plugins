@@ -39,21 +39,30 @@ function toPaperToolName(name: string): string {
 	return name.startsWith(TOOL_PREFIX) ? name : `${TOOL_PREFIX}${name}`;
 }
 
+const IMAGE_MIME_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
+
+function imageBlock(data: unknown, mimeType: unknown): any {
+	if (typeof data !== "string" || data.length === 0) {
+		return { type: "text", text: "[Paper returned an empty image]" };
+	}
+	// Never forward an unexpected mime type to the provider — a non-image
+	// value here previously poisoned the whole session with 400s.
+	const mime = typeof mimeType === "string" && IMAGE_MIME_TYPES.has(mimeType) ? mimeType : "image/png";
+	// pi-ai ImageContent is flat: { type: "image", data, mimeType }
+	return { type: "image", data, mimeType: mime };
+}
+
 function mapContent(block: any): any {
 	switch (block?.type) {
 		case "text":
 			return { type: "text", text: block.text ?? "" };
 		case "image":
-			return {
-				type: "image",
-				source: {
-					type: "base64",
-					mediaType: block.mimeType ?? "image/png",
-					data: block.data ?? "",
-				},
-			};
+			return imageBlock(block.data, block.mimeType);
 		case "resource": {
 			const resource = block.resource;
+			if (typeof resource?.mimeType === "string" && resource.mimeType.startsWith("image/") && resource.blob) {
+				return imageBlock(resource.blob, resource.mimeType);
+			}
 			return { type: "text", text: resource?.text ?? JSON.stringify(resource ?? block) };
 		}
 		default:
