@@ -9,19 +9,25 @@
  * Requires Paper Desktop running with a file open.
  * Override the endpoint with the PAPER_MCP_URL environment variable.
  */
+import { Buffer } from "node:buffer";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
 
 const DEFAULT_URL = "http://127.0.0.1:29979/mcp";
 const CONNECT_TIMEOUT_MS = 3000;
+const CLOSE_TIMEOUT_MS = 1000;
 const CALL_TIMEOUT_MS = 120_000;
+const MAX_TOOL_CATALOG_PAGES = 100;
+const MAX_IMAGE_BASE64_CHARS = 6_500_000;
 const TOOL_PREFIX = "paper_";
 const DIAGNOSTIC_TOOL_NAME = "paper_status";
 
 interface McpTool {
 	name: string;
+	title?: string;
 	description?: string;
 	inputSchema?: unknown;
 }
@@ -32,43 +38,130 @@ interface ConnectResult {
 	error?: string;
 }
 
+type PiContent =
+	| { type: "text"; text: string }
+	| { type: "image"; data: string; mimeType: string };
+
 function paperUrl(): string {
 	return process.env.PAPER_MCP_URL ?? DEFAULT_URL;
 }
 
-function toPaperToolName(name: string): string {
-	return name.startsWith(TOOL_PREFIX) ? name : `${TOOL_PREFIX}${name}`;
+function parsePaperUrl(): URL {
+	const url = new URL(paperUrl());
+	if (url.protocol !== "http:" && url.protocol !== "https:") {
+		throw new Error("PAPER_MCP_URL must use http:// or https://");
+	}
+	return url;
 }
 
-const IMAGE_MIME_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
+function safeStringify(value: unknown): string {
+	try {
+		return JSON.stringify(value) ?? String(value);
+	} catch {
+		return String(value);
+	}
+}
 
-function imageBlock(data: unknown, mimeType: unknown): any {
+function errorMessage(error: unknown): string {
+	return error instanceof Error ? error.message : safeStringify(error);
+}
+
+function isConnectionFailure(error: unknown): boolean {
+	return !(error instanceof McpError) || error.code === ErrorCode.ConnectionClosed;
+}
+
+function basePaperToolName(mcpName: string): string {
+	const sanitized = (mcpName.trim() || "tool").replace(/[^a-zA-Z0-9_-]/g, "_");
+	let name = sanitized.startsWith(TOOL_PREFIX) ? sanitized : `${TOOL_PREFIX}${sanitized}`;
+	if (name === DIAGNOSTIC_TOOL_NAME) {
+		// Keep status and paper_status distinct while reserving paper_status for
+		// this extension's connection diagnostic.
+		name = `${TOOL_PREFIX}mcp_${sanitized}`;
+	}
+	return name;
+}
+
+function detectImageMimeType(data: string): string | undefined {
+	const header = Buffer.from(data.slice(0, 32), "base64");
+	if (header.length >= 3 && header[0] === 0xff && header[1] === 0xd8 && header[2] === 0xff) {
+		return "image/jpeg";
+	}
+	if (header.length >= 8 && header.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) {
+		return "image/png";
+	}
+	if (header.length >= 6 && (header.subarray(0, 6).toString("ascii") === "GIF87a" || header.subarray(0, 6).toString("ascii") === "GIF89a")) {
+		return "image/gif";
+	}
+	if (header.length >= 12 && header.subarray(0, 4).toString("ascii") === "RIFF" && header.subarray(8, 12).toString("ascii") === "WEBP") {
+		return "image/webp";
+	}
+	return undefined;
+}
+
+function imageBlock(data: unknown, mimeType: unknown): PiContent {
 	if (typeof data !== "string" || data.length === 0) {
 		return { type: "text", text: "[Paper returned an empty image]" };
 	}
-	// Never forward an unexpected mime type to the provider — a non-image
-	// value here previously poisoned the whole session with 400s.
-	const mime = typeof mimeType === "string" && IMAGE_MIME_TYPES.has(mimeType) ? mimeType : "image/png";
-	// pi-ai ImageContent is flat: { type: "image", data, mimeType }
-	return { type: "image", data, mimeType: mime };
+
+	let payload = data;
+	let declaredMime = typeof mimeType === "string" ? mimeType.split(";", 1)[0].trim().toLowerCase() : "";
+	const dataUrl = /^data:([^;,]+)(?:;[^,]*)?;base64,(.*)$/is.exec(payload);
+	if (dataUrl) {
+		declaredMime ||= dataUrl[1].trim().toLowerCase();
+		payload = dataUrl[2];
+	}
+	payload = payload.replace(/\s/g, "");
+
+	if (!payload || payload.length > MAX_IMAGE_BASE64_CHARS || !/^[a-zA-Z0-9+/]*={0,2}$/.test(payload)) {
+		return { type: "text", text: "[Paper returned invalid or oversized image data]" };
+	}
+
+	// MCP accepts unpadded base64. Canonicalize it before forwarding while
+	// rejecting the impossible one-character remainder.
+	const unpadded = payload.replace(/=+$/, "");
+	const remainder = unpadded.length % 4;
+	if (remainder === 1) {
+		return { type: "text", text: "[Paper returned invalid image data]" };
+	}
+	payload = `${unpadded}${"=".repeat((4 - remainder) % 4)}`;
+
+	// Trust the bytes, not the declaration. This prevents malformed tool output
+	// from poisoning every later provider request in the session.
+	const detectedMime = detectImageMimeType(payload);
+	if (!detectedMime) {
+		return { type: "text", text: `[Paper returned unsupported image data (${declaredMime || "unknown type"})]` };
+	}
+	return { type: "image", data: payload, mimeType: detectedMime };
 }
 
-function mapContent(block: any): any {
+function mapContent(block: any): PiContent {
 	switch (block?.type) {
 		case "text":
-			return { type: "text", text: block.text ?? "" };
+			return { type: "text", text: typeof block.text === "string" ? block.text : safeStringify(block.text) };
 		case "image":
 			return imageBlock(block.data, block.mimeType);
 		case "resource": {
 			const resource = block.resource;
-			if (typeof resource?.mimeType === "string" && resource.mimeType.startsWith("image/") && resource.blob) {
+			if (typeof resource?.blob === "string") {
 				return imageBlock(resource.blob, resource.mimeType);
 			}
-			return { type: "text", text: resource?.text ?? JSON.stringify(resource ?? block) };
+			return {
+				type: "text",
+				text: typeof resource?.text === "string" ? resource.text : safeStringify(resource ?? block),
+			};
 		}
 		default:
-			return { type: "text", text: typeof block === "string" ? block : JSON.stringify(block) };
+			return { type: "text", text: typeof block === "string" ? block : safeStringify(block) };
 	}
+}
+
+function mapToolResult(result: any): PiContent[] {
+	const content = Array.isArray(result?.content) ? result.content.map(mapContent) : [];
+	if (content.length > 0) return content;
+	if (result?.structuredContent !== undefined) {
+		return [{ type: "text", text: safeStringify(result.structuredContent) }];
+	}
+	return [{ type: "text", text: "[Paper returned no content]" }];
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
@@ -81,128 +174,284 @@ function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promi
 	]).finally(() => clearTimeout(timeout));
 }
 
+async function closeQuietly(client: Client): Promise<void> {
+	try {
+		await withTimeout(client.close(), CLOSE_TIMEOUT_MS, "client close timed out");
+	} catch {
+		// Closing is best-effort during reconnect and shutdown.
+	}
+}
+
 export default function (pi: ExtensionAPI) {
+	let sessionActive = false;
+	let connectionGeneration = 0;
 	let client: Client | null = null;
 	let connecting: Promise<ConnectResult> | null = null;
-	let disposed = false;
-	let closePending: (() => Promise<void>) | null = null;
-	const registeredTools = new Set<string>();
 
-	function registerPaperTool(tool: McpTool): void {
-		let name = toPaperToolName(tool.name);
-		// Reserved for the built-in diagnostic tool below.
-		if (name === DIAGNOSTIC_TOOL_NAME) name = "paper_server_status";
-		if (registeredTools.has(name)) return;
-		registeredTools.add(name);
+	const pendingClients = new Set<Client>();
+	const registeredToolNames = new Set<string>();
+	const availableToolNames = new Set<string>();
+	const toolTargets = new Map<string, string>();
+	const toolDefinitionFingerprints = new Map<string, string>();
+	const toolActivePreferences = new Map<string, boolean>();
+	const mcpToPiNames = new Map<string, string>();
+	const piNameOwners = new Map<string, string>();
 
+	function allocatePiToolName(mcpName: string): string {
+		const existing = mcpToPiNames.get(mcpName);
+		if (existing) return existing;
+
+		const base = basePaperToolName(mcpName);
+		let candidate = base;
+		let suffix = 2;
+		while (candidate === DIAGNOSTIC_TOOL_NAME || piNameOwners.has(candidate)) {
+			candidate = `${base}_${suffix++}`;
+		}
+
+		mcpToPiNames.set(mcpName, candidate);
+		piNameOwners.set(candidate, mcpName);
+		return candidate;
+	}
+
+	function captureActivePaperToolPreferences(): void {
+		const active = new Set(pi.getActiveTools());
+		for (const name of availableToolNames) {
+			toolActivePreferences.set(name, active.has(name));
+		}
+	}
+
+	function syncActivePaperTools(nextAvailable: ReadonlySet<string>): void {
+		const active = new Set(pi.getActiveTools());
+		for (const known of registeredToolNames) active.delete(known);
+		for (const name of nextAvailable) {
+			// New tools default to active. Existing tools retain the user's manual
+			// active/inactive choice across reconnects and temporary outages.
+			if (toolActivePreferences.get(name) !== false) active.add(name);
+		}
+		pi.setActiveTools([...active]);
+	}
+
+	function clearAvailableCatalog(): void {
+		captureActivePaperToolPreferences();
+		availableToolNames.clear();
+		toolTargets.clear();
+		syncActivePaperTools(availableToolNames);
+	}
+
+	function registerPaperTool(piName: string, tool: McpTool): void {
 		const description = tool.description ?? `Paper Desktop tool "${tool.name}"`;
+		const fingerprint = safeStringify({ title: tool.title, description, inputSchema: tool.inputSchema });
+		if (toolDefinitionFingerprints.get(piName) === fingerprint) return;
 
+		// Pi stores registered tools in a Map. Re-registering the same name
+		// replaces its definition (rather than duplicating it), which lets a
+		// Paper update refresh schemas, titles, and descriptions safely.
 		pi.registerTool({
-			name,
-			label: `Paper: ${tool.name}`,
+			name: piName,
+			label: tool.title ? `Paper: ${tool.title}` : `Paper: ${tool.name}`,
 			description: `${description}\n\nRequires Paper Desktop running with a file open.`,
 			promptSnippet: description.split("\n")[0].slice(0, 120),
-			// MCP input schemas are JSON Schema; pass through unchanged.
+			// MCP input schemas are JSON Schema; TypeBox schemas use the same shape.
 			parameters: (tool.inputSchema ?? { type: "object", properties: {} }) as never,
 			async execute(_toolCallId, params, signal) {
-				// Resolve the client at call time so tools follow reconnects
-				// instead of holding a stale, possibly closed client.
-				const active = client;
-				if (!active) {
+				if (!sessionActive) {
+					throw new Error("The Paper session is not active. Start a Pi session, then retry.");
+				}
+
+				const mcpName = toolTargets.get(piName);
+				if (!mcpName || !availableToolNames.has(piName)) {
 					throw new Error(
-						"Paper Desktop is not reachable. Open Paper Desktop with a file, then retry (or run /paper-reconnect).",
+						`Paper tool "${piName}" is no longer available. Call paper_status or run /paper-reconnect to refresh the catalog.`,
 					);
 				}
-				const result = await active.callTool(
-					{ name: tool.name, arguments: params as Record<string, unknown> },
-					undefined,
-					{ signal, timeout: CALL_TIMEOUT_MS },
-				);
-				const content = Array.isArray((result as any).content)
-					? (result as any).content.map(mapContent)
-					: [{ type: "text", text: JSON.stringify(result) }];
-				if ((result as any).isError) {
-					const message = content
-						.filter((block: any) => block.type === "text")
-						.map((block: any) => block.text)
-						.join("\n");
-					throw new Error(message || `Paper tool "${tool.name}" failed`);
+
+				const activeClient = client;
+				if (!activeClient) {
+					throw new Error(
+						"Paper Desktop is not reachable. Open Paper Desktop with a file, then call paper_status and retry.",
+					);
 				}
-				return { content, details: {} };
+
+				let result: any;
+				try {
+					result = await activeClient.callTool(
+						{ name: mcpName, arguments: params as Record<string, unknown> },
+						undefined,
+						{ signal, timeout: CALL_TIMEOUT_MS },
+					);
+				} catch (error) {
+					const connectionLost = !signal?.aborted && isConnectionFailure(error);
+					if (connectionLost) {
+						if (client === activeClient) client = null;
+						await closeQuietly(activeClient);
+					}
+					throw new Error(
+						signal?.aborted
+							? `Paper tool "${mcpName}" was cancelled.`
+							: connectionLost
+								? `Paper connection failed while calling "${mcpName}": ${errorMessage(error)}. Call paper_status to reconnect.`
+								: `Paper tool "${mcpName}" failed: ${errorMessage(error)}`,
+					);
+				}
+
+				const content = mapToolResult(result);
+				if (result?.isError) {
+					const message = content
+						.filter((block): block is Extract<PiContent, { type: "text" }> => block.type === "text")
+						.map((block) => block.text)
+						.join("\n");
+					throw new Error(message || `Paper tool "${mcpName}" failed`);
+				}
+				return { content, details: { mcpTool: mcpName } };
 			},
 		});
+
+		registeredToolNames.add(piName);
+		toolDefinitionFingerprints.set(piName, fingerprint);
+	}
+
+	function applyToolCatalog(tools: McpTool[]): void {
+		captureActivePaperToolPreferences();
+		const nextTargets = new Map<string, string>();
+		const nextAvailable = new Set<string>();
+
+		for (const tool of tools) {
+			const piName = allocatePiToolName(tool.name);
+			nextTargets.set(piName, tool.name);
+			nextAvailable.add(piName);
+			registerPaperTool(piName, tool);
+		}
+
+		toolTargets.clear();
+		for (const [piName, mcpName] of nextTargets) toolTargets.set(piName, mcpName);
+		availableToolNames.clear();
+		for (const name of nextAvailable) availableToolNames.add(name);
+		syncActivePaperTools(availableToolNames);
+	}
+
+	async function listAllTools(activeClient: Client): Promise<McpTool[]> {
+		const tools: McpTool[] = [];
+		const seenCursors = new Set<string>();
+		let cursor: string | undefined;
+
+		for (let pageNumber = 1; pageNumber <= MAX_TOOL_CATALOG_PAGES; pageNumber++) {
+			const page = await withTimeout(
+				activeClient.listTools(cursor ? { cursor } : undefined),
+				CONNECT_TIMEOUT_MS,
+				`listing tools timed out on page ${pageNumber}`,
+			);
+			tools.push(...(page.tools as McpTool[]));
+
+			if (!page.nextCursor) return tools;
+			if (seenCursors.has(page.nextCursor)) {
+				throw new Error("Paper returned a repeated tool-catalog cursor");
+			}
+			seenCursors.add(page.nextCursor);
+			cursor = page.nextCursor;
+		}
+
+		throw new Error(`Paper tool catalog exceeded ${MAX_TOOL_CATALOG_PAGES} pages`);
+	}
+
+	function isCurrentConnection(generation: number): boolean {
+		return sessionActive && connectionGeneration === generation;
+	}
+
+	async function openConnection(generation: number, clientsToClose: Client[]): Promise<ConnectResult> {
+		await Promise.all(clientsToClose.map(closeQuietly));
+		if (!isCurrentConnection(generation)) {
+			return { ok: false, toolCount: 0, error: "connection attempt was superseded" };
+		}
+
+		let candidate: Client | null = null;
+		try {
+			// URL parsing belongs inside this try so bad configuration cannot leave
+			// the connection state wedged.
+			const endpoint = parsePaperUrl();
+			candidate = new Client({ name: "pi-paper-desktop", version: "0.1.0" });
+			pendingClients.add(candidate);
+			const transport = new StreamableHTTPClientTransport(endpoint);
+
+			await withTimeout(candidate.connect(transport), CONNECT_TIMEOUT_MS, "connection timed out");
+			if (!isCurrentConnection(generation)) {
+				await closeQuietly(candidate);
+				return { ok: false, toolCount: 0, error: "connection attempt was superseded" };
+			}
+
+			const tools = await listAllTools(candidate);
+			if (!isCurrentConnection(generation)) {
+				await closeQuietly(candidate);
+				return { ok: false, toolCount: 0, error: "connection attempt was superseded" };
+			}
+
+			pendingClients.delete(candidate);
+			client = candidate;
+			applyToolCatalog(tools);
+			return { ok: true, toolCount: availableToolNames.size };
+		} catch (error) {
+			if (candidate) {
+				pendingClients.delete(candidate);
+				if (client === candidate) client = null;
+				await closeQuietly(candidate);
+			}
+			if (!isCurrentConnection(generation)) {
+				return { ok: false, toolCount: 0, error: "connection attempt was superseded" };
+			}
+			clearAvailableCatalog();
+			return { ok: false, toolCount: 0, error: errorMessage(error) };
+		} finally {
+			if (candidate) pendingClients.delete(candidate);
+		}
 	}
 
 	function attemptConnect(force = false): Promise<ConnectResult> {
-		if (disposed) return Promise.resolve({ ok: false, toolCount: 0, error: "session is shutting down" });
-		if (client && !force) return Promise.resolve({ ok: true, toolCount: registeredTools.size });
-		if (connecting) {
-			if (!force) return connecting;
-			// A connect is already in flight; chain the forced reconnect after
-			// it settles so the explicit reconnect always wins.
-			return connecting.then(() => attemptConnect(true));
+		if (!sessionActive) {
+			return Promise.resolve({ ok: false, toolCount: 0, error: "session is not active" });
+		}
+		if (!force) {
+			if (client) return Promise.resolve({ ok: true, toolCount: availableToolNames.size });
+			if (connecting) return connecting;
 		}
 
-		connecting = (async (): Promise<ConnectResult> => {
-			// Drop any stale client before reconnecting.
-			if (client) {
-				const stale = client;
-				client = null;
-				await stale.close().catch(() => {});
-			}
+		const clientsToClose = new Set<Client>();
+		if (force) {
+			if (client) clientsToClose.add(client);
+			for (const pending of pendingClients) clientsToClose.add(pending);
+			client = null;
+		}
 
-			const c = new Client({ name: "pi-paper-desktop", version: "0.1.0" });
-			const transport = new StreamableHTTPClientTransport(new URL(paperUrl()));
-			closePending = () => c.close().catch(() => {});
-			try {
-				await withTimeout(c.connect(transport), CONNECT_TIMEOUT_MS, "connection timed out");
-
-				// The session may have been shut down while connecting.
-				if (disposed) {
-					await c.close().catch(() => {});
-					return { ok: false, toolCount: 0, error: "session is shutting down" };
-				}
-
-				// Note: if the server ever paginates tools, this needs a cursor loop.
-				const { tools } = (await withTimeout(
-					c.listTools(),
-					CONNECT_TIMEOUT_MS,
-					"listing tools timed out",
-				)) as { tools: McpTool[] };
-				if (disposed) {
-					await c.close().catch(() => {});
-					return { ok: false, toolCount: 0, error: "session is shutting down" };
-				}
-				client = c;
-				if (force) registeredTools.clear(); // full catalog refresh on explicit reconnect
-				for (const tool of tools) registerPaperTool(tool);
-				return { ok: true, toolCount: tools.length };
-			} catch (err) {
-				client = null;
-				await c.close().catch(() => {});
-				return { ok: false, toolCount: 0, error: err instanceof Error ? err.message : String(err) };
-			} finally {
-				closePending = null;
-				connecting = null;
-			}
-		})();
-
-		return connecting;
+		const generation = ++connectionGeneration;
+		const attempt = openConnection(generation, [...clientsToClose]);
+		connecting = attempt;
+		void attempt.finally(() => {
+			if (connecting === attempt) connecting = null;
+		});
+		return attempt;
 	}
 
-	/**
-	 * Verify the cached client is still alive; reconnect from scratch if Paper
-	 * Desktop was restarted or the MCP session dropped underneath us.
-	 */
 	async function ensureLiveConnection(): Promise<ConnectResult> {
-		if (client) {
-			try {
-				await withTimeout(client.ping(), CONNECT_TIMEOUT_MS, "ping timed out");
-				return { ok: true, toolCount: registeredTools.size };
-			} catch {
-				// Dead client — fall through to a forced reconnect.
-			}
+		if (!sessionActive) {
+			return { ok: false, toolCount: 0, error: "session is not active" };
 		}
+
+		const activeClient = client;
+		if (!activeClient) return attemptConnect(false);
+
+		try {
+			await withTimeout(activeClient.ping(), CONNECT_TIMEOUT_MS, "ping timed out");
+			if (client === activeClient) {
+				return { ok: true, toolCount: availableToolNames.size };
+			}
+			if (client) return { ok: true, toolCount: availableToolNames.size };
+		} catch {
+			if (client === activeClient) client = null;
+			await closeQuietly(activeClient);
+			if (client) return { ok: true, toolCount: availableToolNames.size };
+		}
+
+		// A reconnect may have started while the ping was in flight. Reuse it
+		// instead of superseding it with another forced attempt.
+		if (connecting) return connecting;
 		return attemptConnect(true);
 	}
 
@@ -218,12 +467,11 @@ export default function (pi: ExtensionAPI) {
 		async execute() {
 			const result = await ensureLiveConnection();
 			if (result.ok) {
-				const names = [...registeredTools].filter((n) => n !== DIAGNOSTIC_TOOL_NAME).join(", ");
 				return {
 					content: [
 						{
 							type: "text",
-							text: `Connected to Paper Desktop at ${paperUrl()}. ${result.toolCount} tools available: ${names || "none"}.`,
+							text: `Connected to Paper Desktop at ${paperUrl()}. ${result.toolCount} tools available: ${[...availableToolNames].join(", ") || "none"}.`,
 						},
 					],
 					details: {},
@@ -255,10 +503,9 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("session_start", async (_event, ctx) => {
-		// Pi may reuse this extension instance across sessions in one process;
-		// a new session must always be allowed to connect again.
-		disposed = false;
-		const result = await attemptConnect();
+		sessionActive = true;
+		clearAvailableCatalog();
+		const result = await attemptConnect(true);
 		if (!ctx.hasUI) return;
 		if (result.ok) {
 			ctx.ui.notify(`Paper: connected — ${result.toolCount} tools`, "info");
@@ -268,13 +515,21 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("session_shutdown", async () => {
-		disposed = true;
-		const pending = closePending;
-		closePending = null;
-		const c = client;
+		captureActivePaperToolPreferences();
+		sessionActive = false;
+		connectionGeneration++;
+		connecting = null;
+
+		const clientsToClose = new Set<Client>();
+		if (client) clientsToClose.add(client);
+		for (const pending of pendingClients) clientsToClose.add(pending);
 		client = null;
-		registeredTools.clear();
-		if (pending) await pending();
-		if (c) await c.close().catch(() => {});
+		pendingClients.clear();
+		availableToolNames.clear();
+		toolTargets.clear();
+
+		// Keep wrapper identities, fingerprints, preferences, and name allocations:
+		// Pi has no unregisterTool API. Changed definitions are replaced in place.
+		await Promise.all([...clientsToClose].map(closeQuietly));
 	});
 }

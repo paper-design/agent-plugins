@@ -4,7 +4,8 @@
   "private": true,
   "keywords": ["pi-package"],
   "scripts": {
-    "build": "bun ./scripts/validate-cursor-schema.mjs && bun ./scripts/validate-cursor-structure.mjs && bun ./scripts/validate-codex.mjs"
+    "build": "bun ./scripts/validate-cursor-schema.mjs && bun ./scripts/validate-cursor-structure.mjs && bun ./scripts/validate-codex.mjs && bun run validate:pi",
+    "validate:pi": "tsc --noEmit --target ES2022 --module NodeNext --moduleResolution NodeNext --skipLibCheck plugins/paper-desktop/pi/index.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",
