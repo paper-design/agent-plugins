@@ -18,6 +18,7 @@ const DEFAULT_URL = "http://127.0.0.1:29979/mcp";
 const CONNECT_TIMEOUT_MS = 3000;
 const CALL_TIMEOUT_MS = 120_000;
 const TOOL_PREFIX = "paper_";
+const DIAGNOSTIC_TOOL_NAME = "paper_status";
 
 interface McpTool {
 	name: string;
@@ -87,8 +88,10 @@ export default function (pi: ExtensionAPI) {
 	let closePending: (() => Promise<void>) | null = null;
 	const registeredTools = new Set<string>();
 
-	function registerPaperTool(c: Client, tool: McpTool): void {
-		const name = toPaperToolName(tool.name);
+	function registerPaperTool(tool: McpTool): void {
+		let name = toPaperToolName(tool.name);
+		// Reserved for the built-in diagnostic tool below.
+		if (name === DIAGNOSTIC_TOOL_NAME) name = "paper_server_status";
 		if (registeredTools.has(name)) return;
 		registeredTools.add(name);
 
@@ -102,12 +105,15 @@ export default function (pi: ExtensionAPI) {
 			// MCP input schemas are JSON Schema; pass through unchanged.
 			parameters: (tool.inputSchema ?? { type: "object", properties: {} }) as never,
 			async execute(_toolCallId, params, signal) {
-				if (!client) {
+				// Resolve the client at call time so tools follow reconnects
+				// instead of holding a stale, possibly closed client.
+				const active = client;
+				if (!active) {
 					throw new Error(
 						"Paper Desktop is not reachable. Open Paper Desktop with a file, then retry (or run /paper-reconnect).",
 					);
 				}
-				const result = await c.callTool(
+				const result = await active.callTool(
 					{ name: tool.name, arguments: params as Record<string, unknown> },
 					undefined,
 					{ signal, timeout: CALL_TIMEOUT_MS },
@@ -130,7 +136,12 @@ export default function (pi: ExtensionAPI) {
 	function attemptConnect(force = false): Promise<ConnectResult> {
 		if (disposed) return Promise.resolve({ ok: false, toolCount: 0, error: "session is shutting down" });
 		if (client && !force) return Promise.resolve({ ok: true, toolCount: registeredTools.size });
-		if (connecting) return connecting;
+		if (connecting) {
+			if (!force) return connecting;
+			// A connect is already in flight; chain the forced reconnect after
+			// it settles so the explicit reconnect always wins.
+			return connecting.then(() => attemptConnect(true));
+		}
 
 		connecting = (async (): Promise<ConnectResult> => {
 			// Drop any stale client before reconnecting.
@@ -154,8 +165,12 @@ export default function (pi: ExtensionAPI) {
 
 				// Note: if the server ever paginates tools, this needs a cursor loop.
 				const { tools } = (await c.listTools()) as { tools: McpTool[] };
+				if (disposed) {
+					await c.close().catch(() => {});
+					return { ok: false, toolCount: 0, error: "session is shutting down" };
+				}
 				client = c;
-				for (const tool of tools) registerPaperTool(c, tool);
+				for (const tool of tools) registerPaperTool(tool);
 				return { ok: true, toolCount: tools.length };
 			} catch (err) {
 				client = null;
@@ -189,7 +204,7 @@ export default function (pi: ExtensionAPI) {
 	// Always available so the LLM can diagnose and restore the connection
 	// even when Paper Desktop was started after pi.
 	pi.registerTool({
-		name: "paper_status",
+		name: DIAGNOSTIC_TOOL_NAME,
 		label: "Paper: status",
 		description:
 			"Check the connection to Paper Desktop, reconnecting if needed. Use this when paper_* tools are missing or failing.",
@@ -198,7 +213,7 @@ export default function (pi: ExtensionAPI) {
 		async execute() {
 			const result = await ensureLiveConnection();
 			if (result.ok) {
-				const names = [...registeredTools].filter((n) => n !== "paper_status").join(", ");
+				const names = [...registeredTools].filter((n) => n !== DIAGNOSTIC_TOOL_NAME).join(", ");
 				return {
 					content: [
 						{
