@@ -164,12 +164,17 @@ export default function (pi: ExtensionAPI) {
 				}
 
 				// Note: if the server ever paginates tools, this needs a cursor loop.
-				const { tools } = (await c.listTools()) as { tools: McpTool[] };
+				const { tools } = (await withTimeout(
+					c.listTools(),
+					CONNECT_TIMEOUT_MS,
+					"listing tools timed out",
+				)) as { tools: McpTool[] };
 				if (disposed) {
 					await c.close().catch(() => {});
 					return { ok: false, toolCount: 0, error: "session is shutting down" };
 				}
 				client = c;
+				if (force) registeredTools.clear(); // full catalog refresh on explicit reconnect
 				for (const tool of tools) registerPaperTool(tool);
 				return { ok: true, toolCount: tools.length };
 			} catch (err) {
@@ -250,6 +255,9 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("session_start", async (_event, ctx) => {
+		// Pi may reuse this extension instance across sessions in one process;
+		// a new session must always be allowed to connect again.
+		disposed = false;
 		const result = await attemptConnect();
 		if (!ctx.hasUI) return;
 		if (result.ok) {
