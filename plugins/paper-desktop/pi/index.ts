@@ -36,6 +36,13 @@ interface ConnectResult {
 	ok: boolean;
 	toolCount: number;
 	error?: string;
+	superseded?: boolean;
+}
+
+interface SettledConnection {
+	generation: number;
+	configuration: string;
+	result: ConnectResult;
 }
 
 type PiContent =
@@ -46,8 +53,8 @@ function paperUrl(): string {
 	return process.env.PAPER_MCP_URL ?? DEFAULT_URL;
 }
 
-function parsePaperUrl(): URL {
-	const url = new URL(paperUrl());
+function parsePaperUrl(configuration = paperUrl()): URL {
+	const url = new URL(configuration);
 	if (url.protocol !== "http:" && url.protocol !== "https:") {
 		throw new Error("PAPER_MCP_URL must use http:// or https://");
 	}
@@ -186,7 +193,11 @@ export default function (pi: ExtensionAPI) {
 	let sessionActive = false;
 	let connectionGeneration = 0;
 	let client: Client | null = null;
+	let clientConfiguration: string | null = null;
+	let clientEndpoint: string | null = null;
 	let connecting: Promise<ConnectResult> | null = null;
+	let connectingConfiguration: string | null = null;
+	let latestSettledConnection: SettledConnection | null = null;
 
 	const pendingClients = new Set<Client>();
 	const registeredToolNames = new Set<string>();
@@ -258,6 +269,18 @@ export default function (pi: ExtensionAPI) {
 					throw new Error("The Paper session is not active. Start a Pi session, then retry.");
 				}
 
+				// Never send a tool call to an endpoint that no longer matches the
+				// process configuration. Refresh first because the new endpoint may
+				// expose a different catalog or map this wrapper to another MCP name.
+				if (!client || clientConfiguration !== paperUrl()) {
+					const reconnectResult = await attemptConnect(false);
+					if (!reconnectResult.ok) {
+						throw new Error(
+							`Paper Desktop is not reachable at ${paperUrl()} (${reconnectResult.error}). Call paper_status to retry.`,
+						);
+					}
+				}
+
 				const mcpName = toolTargets.get(piName);
 				if (!mcpName || !availableToolNames.has(piName)) {
 					throw new Error(
@@ -282,7 +305,11 @@ export default function (pi: ExtensionAPI) {
 				} catch (error) {
 					const connectionLost = !signal?.aborted && isConnectionFailure(error);
 					if (connectionLost) {
-						if (client === activeClient) client = null;
+						if (client === activeClient) {
+							client = null;
+							clientConfiguration = null;
+							clientEndpoint = null;
+						}
 						await closeQuietly(activeClient);
 					}
 					throw new Error(
@@ -353,50 +380,60 @@ export default function (pi: ExtensionAPI) {
 		throw new Error(`Paper tool catalog exceeded ${MAX_TOOL_CATALOG_PAGES} pages`);
 	}
 
-	function isCurrentConnection(generation: number): boolean {
-		return sessionActive && connectionGeneration === generation;
+	function supersededConnection(): ConnectResult {
+		return { ok: false, toolCount: 0, error: "connection attempt was superseded", superseded: true };
 	}
 
-	async function openConnection(generation: number, clientsToClose: Client[]): Promise<ConnectResult> {
+	function isCurrentConnection(generation: number, configuration: string): boolean {
+		return sessionActive && connectionGeneration === generation && paperUrl() === configuration;
+	}
+
+	async function openConnection(
+		generation: number,
+		configuration: string,
+		clientsToClose: Client[],
+	): Promise<ConnectResult> {
 		await Promise.all(clientsToClose.map(closeQuietly));
-		if (!isCurrentConnection(generation)) {
-			return { ok: false, toolCount: 0, error: "connection attempt was superseded" };
-		}
+		if (!isCurrentConnection(generation, configuration)) return supersededConnection();
 
 		let candidate: Client | null = null;
 		try {
-			// URL parsing belongs inside this try so bad configuration cannot leave
-			// the connection state wedged.
-			const endpoint = parsePaperUrl();
+			// Parse the captured configuration inside this try so bad input cannot
+			// wedge connection cleanup or silently fall back to another endpoint.
+			const endpoint = parsePaperUrl(configuration);
 			candidate = new Client({ name: "pi-paper-desktop", version: "0.1.0" });
 			pendingClients.add(candidate);
 			const transport = new StreamableHTTPClientTransport(endpoint);
 
 			await withTimeout(candidate.connect(transport), CONNECT_TIMEOUT_MS, "connection timed out");
-			if (!isCurrentConnection(generation)) {
+			if (!isCurrentConnection(generation, configuration)) {
 				await closeQuietly(candidate);
-				return { ok: false, toolCount: 0, error: "connection attempt was superseded" };
+				return supersededConnection();
 			}
 
 			const tools = await listAllTools(candidate);
-			if (!isCurrentConnection(generation)) {
+			if (!isCurrentConnection(generation, configuration)) {
 				await closeQuietly(candidate);
-				return { ok: false, toolCount: 0, error: "connection attempt was superseded" };
+				return supersededConnection();
 			}
 
 			pendingClients.delete(candidate);
 			client = candidate;
+			clientConfiguration = configuration;
+			clientEndpoint = endpoint.href;
 			applyToolCatalog(tools);
 			return { ok: true, toolCount: availableToolNames.size };
 		} catch (error) {
 			if (candidate) {
 				pendingClients.delete(candidate);
-				if (client === candidate) client = null;
+				if (client === candidate) {
+					client = null;
+					clientConfiguration = null;
+					clientEndpoint = null;
+				}
 				await closeQuietly(candidate);
 			}
-			if (!isCurrentConnection(generation)) {
-				return { ok: false, toolCount: 0, error: "connection attempt was superseded" };
-			}
+			if (!isCurrentConnection(generation, configuration)) return supersededConnection();
 			clearAvailableCatalog();
 			return { ok: false, toolCount: 0, error: errorMessage(error) };
 		} finally {
@@ -404,27 +441,93 @@ export default function (pi: ExtensionAPI) {
 		}
 	}
 
+	async function settleConnectionResult(
+		generation: number,
+		configuration: string,
+		ownAttempt: Promise<ConnectResult>,
+		initialResult: ConnectResult,
+	): Promise<ConnectResult> {
+		const result = isCurrentConnection(generation, configuration)
+			? initialResult
+			: supersededConnection();
+
+		if (!result.superseded) {
+			if (!latestSettledConnection || generation >= latestSettledConnection.generation) {
+				latestSettledConnection = { generation, configuration, result };
+			}
+			return result;
+		}
+
+		if (!sessionActive) {
+			return { ok: false, toolCount: 0, error: "session is not active" };
+		}
+
+		const currentConfiguration = paperUrl();
+		if (client && clientConfiguration === currentConfiguration) {
+			return { ok: true, toolCount: availableToolNames.size };
+		}
+
+		// Follow the newest in-flight attempt rather than surfacing this stale
+		// attempt's cancellation as a user-visible connection failure.
+		if (connecting && connecting !== ownAttempt) {
+			return connectingConfiguration === currentConfiguration
+				? connecting
+				: attemptConnect(true);
+		}
+
+		// The replacement may already have settled and cleared `connecting`.
+		if (
+			latestSettledConnection &&
+			latestSettledConnection.generation > generation &&
+			latestSettledConnection.configuration === currentConfiguration &&
+			!latestSettledConnection.result.ok
+		) {
+			// A failure remains accurate until another attempt starts. A cached
+			// success is never enough: its client may already have disconnected.
+			return latestSettledConnection.result;
+		}
+
+		// No replacement survived long enough to be observed (for example, the
+		// endpoint changed away and back). Start one so a superseded result never
+		// leaks as a false user-visible failure while the session is still active.
+		return attemptConnect(true);
+	}
+
 	function attemptConnect(force = false): Promise<ConnectResult> {
 		if (!sessionActive) {
 			return Promise.resolve({ ok: false, toolCount: 0, error: "session is not active" });
 		}
+
+		const configuration = paperUrl();
+		let replaceExisting = force;
 		if (!force) {
-			if (client) return Promise.resolve({ ok: true, toolCount: availableToolNames.size });
-			if (connecting) return connecting;
+			if (client && clientConfiguration === configuration) {
+				return Promise.resolve({ ok: true, toolCount: availableToolNames.size });
+			}
+			if (connecting && connectingConfiguration === configuration) return connecting;
+			replaceExisting = Boolean(client || connecting);
 		}
 
 		const clientsToClose = new Set<Client>();
-		if (force) {
+		if (replaceExisting) {
 			if (client) clientsToClose.add(client);
 			for (const pending of pendingClients) clientsToClose.add(pending);
 			client = null;
+			clientConfiguration = null;
+			clientEndpoint = null;
 		}
 
 		const generation = ++connectionGeneration;
-		const attempt = openConnection(generation, [...clientsToClose]);
+		const rawAttempt = openConnection(generation, configuration, [...clientsToClose]);
+		let attempt: Promise<ConnectResult>;
+		attempt = rawAttempt.then((result) => settleConnectionResult(generation, configuration, attempt, result));
 		connecting = attempt;
+		connectingConfiguration = configuration;
 		void attempt.finally(() => {
-			if (connecting === attempt) connecting = null;
+			if (connecting === attempt) {
+				connecting = null;
+				connectingConfiguration = null;
+			}
 		});
 		return attempt;
 	}
@@ -434,25 +537,34 @@ export default function (pi: ExtensionAPI) {
 			return { ok: false, toolCount: 0, error: "session is not active" };
 		}
 
+		const configuration = paperUrl();
 		const activeClient = client;
-		if (!activeClient) return attemptConnect(false);
+		if (!activeClient || clientConfiguration !== configuration) return attemptConnect(false);
 
 		try {
 			await withTimeout(activeClient.ping(), CONNECT_TIMEOUT_MS, "ping timed out");
-			if (client === activeClient) {
+			if (paperUrl() !== configuration) return attemptConnect(false);
+			if (client === activeClient && clientConfiguration === configuration) {
 				return { ok: true, toolCount: availableToolNames.size };
 			}
-			if (client) return { ok: true, toolCount: availableToolNames.size };
+			if (client && clientConfiguration === configuration) {
+				return { ok: true, toolCount: availableToolNames.size };
+			}
 		} catch {
-			if (client === activeClient) client = null;
+			if (client === activeClient) {
+				client = null;
+				clientConfiguration = null;
+				clientEndpoint = null;
+			}
 			await closeQuietly(activeClient);
-			if (client) return { ok: true, toolCount: availableToolNames.size };
+			if (client && clientConfiguration === paperUrl()) {
+				return { ok: true, toolCount: availableToolNames.size };
+			}
 		}
 
-		// A reconnect may have started while the ping was in flight. Reuse it
-		// instead of superseding it with another forced attempt.
-		if (connecting) return connecting;
-		return attemptConnect(true);
+		// Reuse a reconnect that matches the current configuration; attemptConnect
+		// supersedes one aimed at an endpoint that changed while ping was in flight.
+		return attemptConnect(false);
 	}
 
 	// Always available so the LLM can diagnose and restore the connection
@@ -471,7 +583,7 @@ export default function (pi: ExtensionAPI) {
 					content: [
 						{
 							type: "text",
-							text: `Connected to Paper Desktop at ${paperUrl()}. ${result.toolCount} tools available: ${[...availableToolNames].join(", ") || "none"}.`,
+							text: `Connected to Paper Desktop at ${clientEndpoint ?? paperUrl()}. ${result.toolCount} tools available: ${[...availableToolNames].join(", ") || "none"}.`,
 						},
 					],
 					details: {},
@@ -524,6 +636,10 @@ export default function (pi: ExtensionAPI) {
 		if (client) clientsToClose.add(client);
 		for (const pending of pendingClients) clientsToClose.add(pending);
 		client = null;
+		clientConfiguration = null;
+		clientEndpoint = null;
+		connectingConfiguration = null;
+		latestSettledConnection = null;
 		pendingClients.clear();
 		availableToolNames.clear();
 		toolTargets.clear();
