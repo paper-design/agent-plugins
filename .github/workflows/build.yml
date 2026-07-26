@@ -4,6 +4,7 @@ on:
   push:
     branches: [main, pi-extension]
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
