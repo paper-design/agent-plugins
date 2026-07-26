@@ -627,7 +627,6 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("session_shutdown", async () => {
-		captureActivePaperToolPreferences();
 		sessionActive = false;
 		connectionGeneration++;
 		connecting = null;
@@ -641,8 +640,7 @@ export default function (pi: ExtensionAPI) {
 		connectingConfiguration = null;
 		latestSettledConnection = null;
 		pendingClients.clear();
-		availableToolNames.clear();
-		toolTargets.clear();
+		clearAvailableCatalog();
 
 		// Keep wrapper identities, fingerprints, preferences, and name allocations:
 		// Pi has no unregisterTool API. Changed definitions are replaced in place.
