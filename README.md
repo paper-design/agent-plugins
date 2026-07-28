@@ -1,7 +1,7 @@
 # Paper agent plugins
 
 Use Paper with your favorite agent harness.
-Missing one? [Request it in an issue](https://github.com/paper-design/agent-plugins/issues/new).
+Are we missing one, you have feedback for us, or just want to chat? Join us on our [Discord](https://discord.gg/xqBrwhuh2J) or [Slack](https://paper-community.slack.com/join/shared_invite/zt-430qekrpz-EzbDXbpIHulMPVBB02CwVA) communities.
 
 ## Cursor
 
