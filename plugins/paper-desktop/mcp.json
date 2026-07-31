@@ -1,9 +1,11 @@
 {
   "mcpServers": {
     "paper": {
-      "command": "node",
-      "args": ["bin/resolve-cli.mjs"],
-      "cwd": "."
+      "command": "sh",
+      "args": [
+        "-c",
+        "set -eu; if [ \"$(uname -s)\" = Darwin ]; then root=\"$HOME/Library/Application Support/Paper\"; else root=\"${XDG_CONFIG_HOME:-$HOME/.config}/Paper\"; fi; for c in \"$root/cli\" \"$root/staging/cli\" \"$root/localhost/cli\"; do if [ -e \"$c\" ]; then exec \"$c\" mcp; fi; done; echo \"Paper CLI could not be found. Install Paper Desktop (https://paper.design/downloads) and open it once.\" >&2; exit 1"
+      ]
     }
   }
 }
