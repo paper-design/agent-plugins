@@ -1,11 +1,4 @@
 #!/usr/bin/env node
-/**
- * Resolve the production Paper CLI Desktop installs into app data (no PATH / admin),
- * then exec it. Agent plugins point here so MCP configs stay portable across OS.
- *
- * Prod only — staging / local builds keep their own CLI paths for direct use.
- */
-
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -16,7 +9,7 @@ import { pathToFileURL } from "node:url";
 export function productionCLICandidates(
   platform = process.platform,
   env = process.env,
-  home = homedir()
+  home = homedir(),
 ) {
   if (platform === "darwin") {
     return [join(home, "Library", "Application Support", "Paper", "cli")];
@@ -34,14 +27,16 @@ export function productionCLICandidates(
 
 /** @returns {string | undefined} */
 export function resolveProductionCLI(platform, env, home) {
-  return productionCLICandidates(platform, env, home).find((path) => existsSync(path));
+  return productionCLICandidates(platform, env, home).find((path) =>
+    existsSync(path),
+  );
 }
 
 export function main(argv = process.argv.slice(2)) {
   const cli = resolveProductionCLI();
   if (!cli) {
     console.error(
-      "Paper CLI not found. Install Paper Desktop from https://paper.design/downloads and open it once so it can install the CLI."
+      "Paper CLI not found. Install Paper Desktop from https://paper.design/downloads and open it once so it can install the CLI.",
     );
     process.exit(1);
   }
