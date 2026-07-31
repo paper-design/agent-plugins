@@ -5,7 +5,12 @@ import { join } from "node:path";
 import { spawn } from "node:child_process";
 import { pathToFileURL } from "node:url";
 
-/** @returns {string[]} Candidate absolute paths for the production CLI binary. */
+/**
+ * @param {NodeJS.Platform} [platform]
+ * @param {NodeJS.ProcessEnv} [env]
+ * @param {string} [home]
+ * @returns {string[]}
+ */
 export function productionCLICandidates(
   platform = process.platform,
   env = process.env,
@@ -25,15 +30,86 @@ export function productionCLICandidates(
   return [join(configHome, "Paper", "cli")];
 }
 
-/** @returns {string | undefined} */
-export function resolveProductionCLI(platform, env, home) {
-  return productionCLICandidates(platform, env, home).find((path) =>
-    existsSync(path),
-  );
+/**
+ * Node's Windows `shell: true` path joins the command into a cmd.exe string
+ * without quoting, so paths with spaces must be quoted by the caller.
+ * @param {string} command
+ * @param {NodeJS.Platform} [platform]
+ * @returns {string}
+ */
+export function spawnCommand(command, platform = process.platform) {
+  if (platform !== "win32") {
+    return command;
+  }
+  return `"${command.replaceAll('"', '""')}"`;
 }
 
+/**
+ * @typedef {object} SignalForwardableChild
+ * @property {boolean} killed
+ * @property {number | null} exitCode
+ * @property {NodeJS.Signals | null} signalCode
+ * @property {(signal?: NodeJS.Signals) => boolean} kill
+ * @property {(event: "exit" | "error", listener: () => void) => unknown} once
+ */
+
+/**
+ * @typedef {object} SignalSource
+ * @property {(event: NodeJS.Signals, listener: () => void) => unknown} on
+ * @property {(event: NodeJS.Signals, listener: () => void) => unknown} off
+ */
+
+/**
+ * Forward host termination signals to the spawned CLI so the child does not
+ * outlive the wrapper when the MCP host stops the configured `node` process.
+ * @param {SignalForwardableChild} child
+ * @param {NodeJS.Signals[]} [signals]
+ * @param {SignalSource} [proc]
+ */
+export function attachSignalForwarding(
+  child,
+  signals = ["SIGINT", "SIGTERM", "SIGHUP"],
+  proc = process,
+) {
+  /** @type {{ signal: NodeJS.Signals, forward: () => void }[]} */
+  const attached = [];
+
+  for (const signal of signals) {
+    const forward = () => {
+      if (child.killed || child.exitCode !== null || child.signalCode) {
+        return;
+      }
+      try {
+        child.kill(signal);
+      } catch {
+        // Child may already be gone between the checks and kill.
+      }
+    };
+
+    try {
+      proc.on(signal, forward);
+      attached.push({ signal, forward });
+    } catch {
+      // Unsupported on this platform (e.g. SIGHUP on Windows).
+    }
+  }
+
+  const detach = () => {
+    for (const { signal, forward } of attached) {
+      proc.off(signal, forward);
+    }
+  };
+  child.once("exit", detach);
+  child.once("error", detach);
+}
+
+/**
+ * @param {string[]} [argv]
+ * @returns {void}
+ */
 export function main(argv = process.argv.slice(2)) {
-  const cli = resolveProductionCLI();
+  const cli = productionCLICandidates().find((path) => existsSync(path));
+
   if (!cli) {
     console.error(
       "Paper CLI not found. Install Paper Desktop from https://paper.design/downloads and open it once so it can install the CLI.",
@@ -42,13 +118,16 @@ export function main(argv = process.argv.slice(2)) {
   }
 
   const args = argv.length > 0 ? argv : ["mcp"];
+  const isWindows = process.platform === "win32";
 
-  const child = spawn(cli, args, {
+  const child = spawn(spawnCommand(cli), args, {
     stdio: "inherit",
     // Windows .cmd shims need a shell; Unix payload is a real executable.
-    shell: process.platform === "win32",
+    shell: isWindows,
     windowsHide: true,
   });
+
+  attachSignalForwarding(child);
 
   child.on("error", (err) => {
     console.error(err instanceof Error ? err.message : err);

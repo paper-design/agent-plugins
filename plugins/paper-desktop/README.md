@@ -14,8 +14,7 @@ Paper connects your designs, agents, code, and data on a single canvas built on 
 
 ## Prerequisites
 
-1. Install [Paper Desktop](https://paper.design/downloads) and open it once — that copies the production CLI into app data (no PATH / admin install required).
-2. Keep Paper Desktop running with a file open when making canvas tool calls. The MCP stdio process can load before Paper is open; tool calls against the live canvas need the app.
+Install [Paper Desktop](https://paper.design/downloads) and open it once.
 
 ## Examples
 
