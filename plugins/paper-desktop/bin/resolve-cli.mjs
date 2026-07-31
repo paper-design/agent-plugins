@@ -6,28 +6,53 @@ import { spawn } from "node:child_process";
 import { pathToFileURL } from "node:url";
 
 /**
+ * App-data root for Paper Desktop (Electron `app.getPath('appData')` + app name).
+ * Production installs the CLI here; staging/localhost use subdirectories.
  * @param {NodeJS.Platform} [platform]
  * @param {NodeJS.ProcessEnv} [env]
  * @param {string} [home]
- * @returns {string[]}
+ * @returns {string}
  */
-export function productionCLICandidates(
+export function paperAppDataRoot(
   platform = process.platform,
   env = process.env,
   home = homedir(),
 ) {
   if (platform === "darwin") {
-    return [join(home, "Library", "Application Support", "Paper", "cli")];
+    return join(home, "Library", "Application Support", "Paper");
   }
 
   if (platform === "win32") {
     const appData = env.APPDATA || join(home, "AppData", "Roaming");
-    return [join(appData, "Paper", "cli.cmd")];
+    return join(appData, "Paper");
   }
 
   // Electron appData on Linux is XDG config home.
   const configHome = env.XDG_CONFIG_HOME || join(home, ".config");
-  return [join(configHome, "Paper", "cli")];
+  return join(configHome, "Paper");
+}
+
+/**
+ * Candidate CLI paths in preference order: production, then staging, then localhost.
+ * Mirrors desktop `getAppDataPath()` — prod stays at the Paper root; other envs use a
+ * subdirectory so they don't share state with production.
+ * @param {NodeJS.Platform} [platform]
+ * @param {NodeJS.ProcessEnv} [env]
+ * @param {string} [home]
+ * @returns {string[]}
+ */
+export function cliCandidates(
+  platform = process.platform,
+  env = process.env,
+  home = homedir(),
+) {
+  const root = paperAppDataRoot(platform, env, home);
+  const cliFile = platform === "win32" ? "cli.cmd" : "cli";
+  return [
+    join(root, cliFile),
+    join(root, "staging", cliFile),
+    join(root, "localhost", cliFile),
+  ];
 }
 
 /**
@@ -108,7 +133,7 @@ export function attachSignalForwarding(
  * @returns {void}
  */
 export function main(argv = process.argv.slice(2)) {
-  const cli = productionCLICandidates().find((path) => existsSync(path));
+  const cli = cliCandidates().find((path) => existsSync(path));
 
   if (!cli) {
     console.error(

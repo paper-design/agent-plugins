@@ -3,62 +3,81 @@ import { EventEmitter } from "node:events";
 import { join } from "node:path";
 import {
   attachSignalForwarding,
-  productionCLICandidates,
+  cliCandidates,
+  paperAppDataRoot,
   spawnCommand,
-} from "../locate-paper-cli.mjs";
+} from "../resolve-cli.mjs";
 
-describe("productionCLICandidates", () => {
-  it("resolves macOS Application Support / Paper / cli", () => {
-    expect(productionCLICandidates("darwin", {}, "/Users/ada")).toEqual([
-      join("/Users/ada", "Library", "Application Support", "Paper", "cli"),
-    ]);
+describe("paperAppDataRoot", () => {
+  it("resolves macOS Application Support / Paper", () => {
+    expect(paperAppDataRoot("darwin", {}, "/Users/ada")).toBe(
+      join("/Users/ada", "Library", "Application Support", "Paper"),
+    );
   });
 
-  it("resolves Windows %APPDATA% / Paper / cli.cmd", () => {
+  it("resolves Windows %APPDATA% / Paper", () => {
     expect(
-      productionCLICandidates(
+      paperAppDataRoot(
         "win32",
         { APPDATA: "C:\\Users\\ada\\AppData\\Roaming" },
         "C:\\Users\\ada",
       ),
-    ).toEqual([join("C:\\Users\\ada\\AppData\\Roaming", "Paper", "cli.cmd")]);
+    ).toBe(join("C:\\Users\\ada\\AppData\\Roaming", "Paper"));
   });
 
   it("falls back to home AppData/Roaming when APPDATA is unset", () => {
-    expect(productionCLICandidates("win32", {}, "C:\\Users\\ada")).toEqual([
-      join("C:\\Users\\ada", "AppData", "Roaming", "Paper", "cli.cmd"),
-    ]);
+    expect(paperAppDataRoot("win32", {}, "C:\\Users\\ada")).toBe(
+      join("C:\\Users\\ada", "AppData", "Roaming", "Paper"),
+    );
   });
 
-  it("resolves Linux XDG config / Paper / cli", () => {
+  it("resolves Linux XDG config / Paper", () => {
     expect(
-      productionCLICandidates(
-        "linux",
-        { XDG_CONFIG_HOME: "/home/ada/.config" },
-        "/home/ada",
-      ),
-    ).toEqual([join("/home/ada/.config", "Paper", "cli")]);
+      paperAppDataRoot("linux", { XDG_CONFIG_HOME: "/home/ada/.config" }, "/home/ada"),
+    ).toBe(join("/home/ada/.config", "Paper"));
   });
 
   it("falls back to ~/.config when XDG_CONFIG_HOME is unset", () => {
-    expect(productionCLICandidates("linux", {}, "/home/ada")).toEqual([
-      join("/home/ada", ".config", "Paper", "cli"),
+    expect(paperAppDataRoot("linux", {}, "/home/ada")).toBe(
+      join("/home/ada", ".config", "Paper"),
+    );
+  });
+});
+
+describe("cliCandidates", () => {
+  it("prefers production, then staging, then localhost on macOS", () => {
+    const root = join("/Users/ada", "Library", "Application Support", "Paper");
+    expect(cliCandidates("darwin", {}, "/Users/ada")).toEqual([
+      join(root, "cli"),
+      join(root, "staging", "cli"),
+      join(root, "localhost", "cli"),
     ]);
   });
 
-  it("does not include staging or other non-prod subdirectories", () => {
-    const paths = [
-      ...productionCLICandidates("darwin", {}, "/Users/ada"),
-      ...productionCLICandidates("linux", {}, "/home/ada"),
-      ...productionCLICandidates(
+  it("prefers production, then staging, then localhost on Windows", () => {
+    const root = join("C:\\Users\\ada\\AppData\\Roaming", "Paper");
+    expect(
+      cliCandidates(
         "win32",
-        { APPDATA: "C:\\Roaming" },
+        { APPDATA: "C:\\Users\\ada\\AppData\\Roaming" },
         "C:\\Users\\ada",
       ),
-    ];
-    for (const path of paths) {
-      expect(path.includes("staging")).toBe(false);
-    }
+    ).toEqual([
+      join(root, "cli.cmd"),
+      join(root, "staging", "cli.cmd"),
+      join(root, "localhost", "cli.cmd"),
+    ]);
+  });
+
+  it("prefers production, then staging, then localhost on Linux", () => {
+    const root = join("/home/ada/.config", "Paper");
+    expect(
+      cliCandidates("linux", { XDG_CONFIG_HOME: "/home/ada/.config" }, "/home/ada"),
+    ).toEqual([
+      join(root, "cli"),
+      join(root, "staging", "cli"),
+      join(root, "localhost", "cli"),
+    ]);
   });
 });
 
