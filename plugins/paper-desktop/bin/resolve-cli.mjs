@@ -66,6 +66,7 @@ export function spawnCommand(command, platform = process.platform) {
   if (platform !== "win32") {
     return command;
   }
+
   return `"${command.replaceAll('"', '""')}"`;
 }
 
@@ -137,8 +138,9 @@ export function main(argv = process.argv.slice(2)) {
 
   if (!cli) {
     console.error(
-      "Paper CLI not found. Install Paper Desktop from https://paper.design/downloads and open it once so it can install the CLI.",
+      "Paper CLI could not be found. Install Paper Desktop (https://paper.design/downloads) and open it once.",
     );
+
     process.exit(1);
   }
 

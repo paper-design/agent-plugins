@@ -21,6 +21,5 @@
     "mcp",
     "design-system"
   ],
-  "skills": "./skills",
   "mcpServers": "./mcp.claude.json"
 }

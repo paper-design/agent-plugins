@@ -23,7 +23,6 @@
     "mcp",
     "design-system"
   ],
-  "skills": "./skills/",
   "mcpServers": "./mcp.json",
   "interface": {
     "displayName": "Paper Desktop",
