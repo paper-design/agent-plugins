@@ -2,8 +2,7 @@
   "mcpServers": {
     "paper": {
       "command": "node",
-      "args": ["bin/locate-paper-cli.mjs"],
-      "cwd": "."
+      "args": ["${CLAUDE_PLUGIN_ROOT}/bin/locate-paper-cli.mjs"]
     }
   }
 }

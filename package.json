@@ -3,7 +3,8 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "build": "bun ./scripts/validate-cursor-schema.mjs && bun ./scripts/validate-cursor-structure.mjs && bun ./scripts/validate-codex.mjs"
+    "build": "bun ./scripts/validate-cursor-schema.mjs && bun ./scripts/validate-cursor-structure.mjs && bun ./scripts/validate-codex.mjs && bun test",
+    "test": "bun test"
   },
   "devDependencies": {
     "@types/bun": "latest",
