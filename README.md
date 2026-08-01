@@ -43,3 +43,51 @@ codex plugin install paper-desktop@paper
 You can also browse and install plugins interactively by running `/plugins` inside Codex CLI after adding the marketplace.
 
 - [Read more about installing Codex plugins](https://developers.openai.com/codex/plugins)
+
+## Copilot CLI
+
+**Add the custom marketplace**
+
+```sh
+copilot plugin marketplace add paper-design/agent-plugins
+```
+
+**Install the plugin**
+
+```sh
+copilot plugin install paper-desktop@paper
+```
+
+Confirm with `copilot mcp list`. Plugins installed this way also appear in VS Code under **Agent Plugins - Installed**.
+
+## VS Code
+
+1. Enable agent plugins: set `chat.plugins.enabled` to `true`.
+2. Add the marketplace in settings:
+
+```json
+"chat.plugins.marketplaces": [
+  "paper-design/agent-plugins"
+]
+```
+
+3. Install **paper-desktop** from the Agent Plugins view (or install via Copilot CLI as above).
+
+### Manual MCP (optional)
+
+If you prefer not to use plugins, add this to your Copilot / VS Code MCP config:
+
+```json
+{
+  "servers": {
+    "paper": {
+      "type": "stdio",
+      "command": "${userHome}/.paper/bin/paper",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+- [About Copilot plugins](https://docs.github.com/en/copilot/concepts/agents/about-plugins)
+- [Agent plugins in VS Code](https://code.visualstudio.com/docs/agent-customization/agent-plugins)
