@@ -1,4 +1,5 @@
 {
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "paper-desktop",
   "version": "0.2.0",
   "description": "Design on a canvas that Copilot can read and write to — built on web standards.",
