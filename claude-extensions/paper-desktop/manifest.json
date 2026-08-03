@@ -5,6 +5,7 @@
   "display_name": "Paper",
   "version": "0.1.0",
   "description": "Design on a canvas that Claude can read and write to — built on web standards.",
+  "documentation": "https://paper.design/docs/mcp",
   "author": {
     "name": "Paper",
     "url": "https://paper.design"
