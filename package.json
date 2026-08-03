@@ -3,7 +3,9 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "build": "bun ./scripts/validate-cursor-schema.mjs && bun ./scripts/validate-cursor-structure.mjs"
+    "build": "bun ./scripts/validate-cursor-schema.mjs && bun ./scripts/validate-cursor-structure.mjs",
+    "pack:mcpb": "bun ./mcpb/pack.ts",
+    "test": "bun run build"
   },
   "devDependencies": {
     "@types/bun": "latest",

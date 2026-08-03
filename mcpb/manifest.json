@@ -1,0 +1,30 @@
+{
+  "manifest_version": "0.4",
+  "name": "paper",
+  "display_name": "Paper",
+  "version": "0.1.0",
+  "description": "Connect Claude to Paper Desktop design tools over MCP.",
+  "author": {
+    "name": "Paper",
+    "url": "https://paper.design"
+  },
+  "server": {
+    "type": "binary",
+    "entry_point": "${HOME}/.paper/bin/paper",
+    "mcp_config": {
+      "command": "${HOME}/.paper/bin/paper",
+      "args": ["mcp"],
+      "platform_overrides": {
+        "win32": {
+          "command": "${HOME}/.paper/bin/paper.exe",
+          "args": ["mcp"]
+        }
+      }
+    }
+  },
+  "compatibility": {
+    "claude_desktop": ">=0.1.0",
+    "platforms": ["darwin", "win32", "linux"]
+  },
+  "tools_generated": true
+}
