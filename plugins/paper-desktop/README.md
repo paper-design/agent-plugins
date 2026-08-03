@@ -14,7 +14,7 @@ Paper connects your designs, agents, code, and data on a single canvas built on 
 
 ## Prerequisites
 
-Paper Desktop must be running with a file open for the MCP server to be available. Download it at [paper.design/downloads](https://paper.design/downloads).
+Install [Paper Desktop](https://paper.design/downloads) and open it once.
 
 ## Examples
 
