@@ -3,11 +3,12 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "build": "bun ./scripts/validate-cursor-schema.mjs && bun ./scripts/validate-cursor-structure.mjs",
-    "pack:mcpb": "bun ./mcpb/pack.ts",
+    "build": "bun ./scripts/validate-cursor-schema.mjs && bun ./scripts/validate-cursor-structure.mjs && bun ./scripts/validate-mcpb.mjs",
+    "pack:mcpb": "bun ./claude-extensions/paper-desktop/scripts/pack.ts",
     "test": "bun run build"
   },
   "devDependencies": {
+    "@anthropic-ai/mcpb": "^2.1.2",
     "@types/bun": "latest",
     "ajv": "^8.18.0",
     "ajv-formats": "^3.0.1"

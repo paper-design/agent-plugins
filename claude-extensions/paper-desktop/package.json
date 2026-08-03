@@ -3,6 +3,6 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "pack": "bun ./pack.ts"
+    "pack": "bun ./scripts/pack.ts"
   }
 }

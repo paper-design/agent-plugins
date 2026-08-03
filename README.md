@@ -28,10 +28,10 @@ Are we missing one, you have feedback for us, or just want to chat? Join us on o
 
 ## Claude Desktop
 
-Pack the config-only MCPB extension, then open or drag `mcpb/dist/paper.mcpb` into Claude Desktop → Extensions:
+Pack the config-only MCPB extension, then open or drag `claude-extensions/paper-desktop/dist/paper.mcpb` into Claude Desktop → Extensions:
 
 ```sh
-cd mcpb && bun run pack
+bun run pack:mcpb
 ```
 
-Requires Paper Desktop installed and opened once (so `~/.paper/bin/paper` exists). See [`mcpb/README.md`](mcpb/README.md).
+Requires Paper Desktop installed and opened once (so `~/.paper/bin/paper` exists). See [`claude-extensions/paper-desktop`](claude-extensions/paper-desktop).
