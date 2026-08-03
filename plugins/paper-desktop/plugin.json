@@ -1,0 +1,27 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "paper-desktop",
+  "version": "0.2.0",
+  "description": "Design on a canvas that Copilot can read and write to — built on web standards.",
+  "author": {
+    "name": "Paper",
+    "email": "team@paper.design",
+    "url": "https://paper.design"
+  },
+  "homepage": "https://paper.design",
+  "repository": "https://github.com/paper-design/agent-plugins",
+  "license": "MIT",
+  "keywords": [
+    "paper",
+    "design",
+    "ui",
+    "canvas",
+    "html",
+    "css",
+    "design-to-code",
+    "code-to-design",
+    "mcp",
+    "design-system"
+  ],
+  "mcpServers": "./mcp.json"
+}
