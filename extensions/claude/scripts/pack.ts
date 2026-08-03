@@ -11,9 +11,9 @@ import { join } from "node:path";
 import { $ } from "bun";
 
 const root = import.meta.dir;
-const distDir = join(root, "dist");
-const outFile = join(distDir, "paper.mcpb");
-const manifest = join(root, "manifest.json");
+const distDir = join(root, "../dist");
+const outFile = join(distDir, "../paper.mcpb");
+const manifest = join(root, "../manifest.json");
 
 await rm(distDir, { recursive: true, force: true });
 await mkdir(distDir, { recursive: true });

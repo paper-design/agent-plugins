@@ -3,7 +3,7 @@
   "name": "paper",
   "display_name": "Paper",
   "version": "0.1.0",
-  "description": "Connect Claude to Paper Desktop design tools over MCP.",
+  "description": "Design on a canvas that Claude can read and write to — built on web standards.",
   "author": {
     "name": "Paper",
     "url": "https://paper.design"
