@@ -2,7 +2,8 @@
 
 /**
  * Validate Claude Desktop MCPB manifests with the official @anthropic-ai/mcpb CLI.
- * Injects README.md as long_description into a temp manifest (source file unchanged).
+ * Injects README.md as long_description into a temp manifest (source file
+ * unchanged), and stages referenced icon/screenshot files.
  */
 
 import {
@@ -10,7 +11,9 @@ import {
   existsSync,
   statSync,
   mkdtempSync,
+  mkdirSync,
   writeFileSync,
+  cpSync,
   rmSync,
 } from "fs";
 import { resolve, dirname, relative, join } from "path";
@@ -18,6 +21,23 @@ import { tmpdir } from "os";
 import { fileURLToPath } from "url";
 import { spawnSync } from "child_process";
 import { buildMcpbManifest } from "./mcpb-manifest.mjs";
+
+function stageManifestAssets(extensionDir, tempDir, manifest) {
+  const assetPaths = [
+    ...(typeof manifest.icon === "string" ? [manifest.icon] : []),
+    ...(Array.isArray(manifest.screenshots) ? manifest.screenshots : []),
+  ];
+
+  for (const rel of assetPaths) {
+    if (typeof rel !== "string" || rel.includes("..") || rel.startsWith("/")) {
+      throw new Error(`refusing unsafe asset path: ${rel}`);
+    }
+    const src = join(extensionDir, rel);
+    const dest = join(tempDir, rel);
+    mkdirSync(dirname(dest), { recursive: true });
+    cpSync(src, dest);
+  }
+}
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, "..");
@@ -51,6 +71,7 @@ for (const entry of extensions) {
     tempDir = mkdtempSync(join(tmpdir(), "mcpb-validate-"));
     const tempManifest = join(tempDir, "manifest.json");
     writeFileSync(tempManifest, `${JSON.stringify(manifest, null, 2)}\n`);
+    stageManifestAssets(extensionDir, tempDir, manifest);
 
     const result = spawnSync(
       "bunx",
@@ -70,7 +91,9 @@ for (const entry of extensions) {
       continue;
     }
 
-    console.log(`${label}: MCPB manifest valid (long_description from ${readmeLabel}).`);
+    console.log(
+      `${label}: MCPB manifest valid (long_description from ${readmeLabel}).`
+    );
   } catch (err) {
     failed = true;
     console.error(`ERROR: ${label}: ${err.message}`);
