@@ -5,15 +5,13 @@
     "email": "team@paper.design"
   },
   "metadata": {
-    "description": "Paper connects your teams, agents, code, and data on a single design space built on web standards.",
-    "version": "0.1.0"
+    "description": "Paper connects your teams, agents, code, and data on a single design space built on web standards."
   },
   "plugins": [
     {
       "name": "paper-desktop",
       "source": "./plugins/paper-desktop",
-      "description": "Connect to Paper Desktop using its MCP server.",
-      "version": "0.2.0"
+      "description": "Connect to Paper Desktop using its MCP server."
     }
   ]
 }

@@ -5,8 +5,7 @@
     "email": "team@paper.design"
   },
   "metadata": {
-    "description": "Paper connects your teams, agents, code, and data on a single design space built on web standards.",
-    "version": "0.1.0"
+    "description": "Paper connects your teams, agents, code, and data on a single design space built on web standards."
   },
   "plugins": [
     {
