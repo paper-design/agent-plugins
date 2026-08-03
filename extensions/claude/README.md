@@ -1,36 +1,58 @@
-# Paper Claude Desktop Extension (MCPB)
+# Paper Desktop
 
-Config-only Claude Desktop extension that registers Paper’s MCP server via the CLI already installed by Paper Desktop.
+## Description
 
-No MCP server code, Node runtime, or CLI binary is bundled. The extension points at the stable CLI path written on Paper Desktop launch:
+Paper connects your designs, agents, code, and data on a single canvas built on web standards. Because Paper is based on web technology and LLMs are fluent in HTML/CSS, Claude can read and write to your design files with high fidelity — turning your canvas into a live collaboration surface between you and your agent.
 
-- Unix: `${HOME}/.paper/bin/paper mcp`
-- Windows: `${HOME}/.paper/bin/paper.exe mcp`
+## Features
 
-This mirrors the Cursor / Claude Code MCP config in [`plugins/paper-desktop/mcp.json`](../plugins/paper-desktop/mcp.json).
+- **Read designs**: Inspect artboard structure, screenshots, computed styles, JSX output, and text content directly from Paper.
+- **Write to the canvas**: Create artboards, add or replace HTML nodes, update styles, set text, and duplicate elements — all from a prompt.
+- **Cross-tool workflows**: Combine with other MCP servers (Figma, Notion, etc.) to sync tokens, pull real content, or translate designs across tools.
+- **Design-to-code**: Turn Paper designs into production code by reading the canvas structure and generating components in your framework of choice.
+- **Code-to-design**: Use your codebase (tokens, styles, components) as context to generate new designs on the canvas.
 
 ## Prerequisites
 
-1. Install [Paper Desktop](https://paper.design/downloads).
-2. Open Paper Desktop once so it installs the CLI to `~/.paper/bin/paper` (or `paper.exe` on Windows).
+Install [Paper Desktop](https://paper.design/downloads) and open it once.
 
-## Install
+## Examples
 
-1. Pack the extension (from this directory):
+### Example 1: Design from your codebase
 
-   ```sh
-   bun run pack
-   ```
+**User prompt:** "Use the CSS styles from my repo and design a settings page in Paper"
 
-   This writes `dist/paper.mcpb`.
+**Expected behavior:**
 
-2. In Claude Desktop, open or drag `dist/paper.mcpb` into **Settings → Extensions**.
-3. Restart Claude Desktop if Paper tools do not appear after install.
+- Claude reads your project's stylesheets, tokens, or theme files to understand your existing design language.
+- Creates a new artboard in Paper and builds a settings page that matches your codebase's visual style.
+- Uses your actual colors, typography, spacing, and component patterns — not generic defaults.
 
-## Failure mode
+### Example 2: Turn a design into code
 
-If the Paper CLI is missing, Claude fails to spawn the MCP server (missing binary). Fix that by launching Paper Desktop once — do not edit the extension or `claude_desktop_config.json`.
+**User prompt:** "Implement my design from Paper in my codebase, using my code conventions"
 
-## Pack notes
+**Expected behavior:**
 
-The archive is a zip with `manifest.json` at the root. We pack with a plain zip because the CLI lives outside the bundle (`entry_point` is an absolute `${HOME}/…` path), which `mcpb validate` may reject as a missing in-bundle binary.
+- Claude reads the selected frame in Paper — structure, styles, text content, and images.
+- Generates production-ready components in your project's framework and coding style.
+- Matches the design's layout, spacing, typography, and colors using your existing conventions (e.g. Tailwind classes, CSS modules, styled-components).
+
+### Example 3: Sync tokens from Figma into Paper
+
+**User prompt:** "Grab my tokens from Figma and create a design system on the canvas in Paper"
+
+**Expected behavior:**
+
+- Claude reads color variables, text styles, and spacing tokens from your open Figma file via the Figma MCP server.
+- Creates a design system sticker sheet on the Paper canvas with swatches, type scales, and spacing references.
+- Note: requires the [Figma MCP server](https://help.figma.com/hc/en-us/articles/32132100833559-Guide-to-the-Figma-MCP-server) to also be connected.
+
+## Privacy Policy
+
+See: [paper.design/privacy](https://paper.design/privacy)
+
+## Support
+
+- Documentation: [paper.design/docs/mcp](https://paper.design/docs/mcp)
+- For issues or questions: team@paper.design
