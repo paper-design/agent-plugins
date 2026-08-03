@@ -37,8 +37,3 @@ Make sure to install [Paper Desktop](https://paper.design/downloads) and open it
 - Your agent will read color variables, text styles, and spacing tokens from your open Figma file via the Figma MCP server.
 - Creates a design system sticker sheet on the Paper canvas with swatches, type scales, and spacing references.
 - Note: requires the [Figma MCP server](https://help.figma.com/hc/en-us/articles/32132100833559-Guide-to-the-Figma-MCP-server) to also be connected.
-
-**Links**
-
-- [Privacy policy](https://paper.design/privacy)
-- For issues or questions: team@paper.design
