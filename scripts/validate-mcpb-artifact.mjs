@@ -2,7 +2,7 @@
 
 /**
  * Ensure the committed paper.mcpb matches a fresh deterministic pack.
- * Relies on pack.ts producing bit-identical zips (fixed mtimes + TZ=UTC).
+ * Relies on pack.ts producing bit-identical zips (fixed modes/mtimes + TZ=UTC).
  */
 
 import { existsSync } from "fs";
@@ -20,7 +20,7 @@ const label = relative(root, artifact);
 
 if (!existsSync(artifact)) {
   console.error(`ERROR: missing committed MCPB artifact: ${label}`);
-  console.error("Run: bun run pack:mcpb && git add -f " + label);
+  console.error("Run: bun run pack:mcpb && git add " + label);
   process.exit(1);
 }
 
@@ -42,6 +42,6 @@ if (diff.status !== 1) {
 }
 
 console.error(`ERROR: ${label} is out of date (or not packed deterministically).`);
-console.error("Run: bun run pack:mcpb && git add -f " + label);
+console.error("Run: bun run pack:mcpb && git add " + label);
 if (diff.stdout) console.error(diff.stdout.trimEnd());
 process.exit(1);

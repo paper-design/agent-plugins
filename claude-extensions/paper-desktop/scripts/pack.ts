@@ -13,6 +13,7 @@
  * file inside the bundle.
  */
 import {
+  chmod,
   cp,
   mkdir,
   readdir,
@@ -28,14 +29,19 @@ import { buildMcpbManifest } from "../../../scripts/mcpb-manifest.mjs";
 
 /** DOS-era zip epoch — fixed so rebuilds are bit-identical across runs. */
 const ZIP_EPOCH = new Date(Date.UTC(1980, 0, 1, 0, 0, 0));
+/** Fixed Unix modes so Info-ZIP external attributes ignore umask / cp defaults. */
+const FILE_MODE = 0o644;
+const DIR_MODE = 0o755;
 
-async function normalizeMtimes(dir: string) {
+async function normalizeStaging(dir: string) {
+  await chmod(dir, DIR_MODE);
   await utimes(dir, ZIP_EPOCH, ZIP_EPOCH);
   for (const name of await readdir(dir)) {
     const path = join(dir, name);
     if ((await stat(path)).isDirectory()) {
-      await normalizeMtimes(path);
+      await normalizeStaging(path);
     } else {
+      await chmod(path, FILE_MODE);
       await utimes(path, ZIP_EPOCH, ZIP_EPOCH);
     }
   }
@@ -72,7 +78,7 @@ for (const rel of assetPaths) {
   await cp(src, dest);
 }
 
-await normalizeMtimes(stageDir);
+await normalizeStaging(stageDir);
 
 // TZ=UTC so DOS timestamps in the zip are timezone-independent (CI is UTC).
 const result = await $`zip -r -X ${outFile} manifest.json ${assetPaths}`

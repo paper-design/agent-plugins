@@ -15,7 +15,7 @@ node_modules
 tmp/
 temp/
 
-# Built assets
-dist
-# Include MCPB as we provide it
-!dist/paper.mcpb
+# Built assets (keep committed MCPB; un-ignore dist/ first so children can match)
+**/dist/**
+!**/dist/
+!**/dist/paper.mcpb
