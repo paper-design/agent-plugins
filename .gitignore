@@ -16,5 +16,4 @@ tmp/
 temp/
 
 # Built assets
-*.mcpb
 dist
