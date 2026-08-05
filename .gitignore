@@ -17,3 +17,5 @@ temp/
 
 # Built assets
 dist
+# Include MCPB as we provide it
+!dist/paper.mcpb
