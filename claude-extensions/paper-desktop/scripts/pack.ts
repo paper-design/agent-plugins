@@ -12,11 +12,34 @@
  * external `${HOME}/.paper/bin/paper` path installed by Paper Desktop — not a
  * file inside the bundle.
  */
-import { cp, mkdir, rm, writeFile } from "node:fs/promises";
+import {
+  cp,
+  mkdir,
+  readdir,
+  rm,
+  stat,
+  utimes,
+  writeFile,
+} from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { $ } from "bun";
 import { buildMcpbManifest } from "../../../scripts/mcpb-manifest.mjs";
+
+/** DOS-era zip epoch — fixed so rebuilds are bit-identical across runs. */
+const ZIP_EPOCH = new Date(Date.UTC(1980, 0, 1, 0, 0, 0));
+
+async function normalizeMtimes(dir: string) {
+  await utimes(dir, ZIP_EPOCH, ZIP_EPOCH);
+  for (const name of await readdir(dir)) {
+    const path = join(dir, name);
+    if ((await stat(path)).isDirectory()) {
+      await normalizeMtimes(path);
+    } else {
+      await utimes(path, ZIP_EPOCH, ZIP_EPOCH);
+    }
+  }
+}
 
 const extensionDir = join(dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = join(extensionDir, "../..");
@@ -49,8 +72,14 @@ for (const rel of assetPaths) {
   await cp(src, dest);
 }
 
-const result =
-  await $`zip -r -X ${outFile} manifest.json ${assetPaths}`.cwd(stageDir).nothrow();
+await normalizeMtimes(stageDir);
+
+// TZ=UTC so DOS timestamps in the zip are timezone-independent (CI is UTC).
+const result = await $`zip -r -X ${outFile} manifest.json ${assetPaths}`
+  .cwd(stageDir)
+  .env({ ...process.env, TZ: "UTC" })
+  .nothrow();
+
 if (result.exitCode !== 0) {
   console.error(result.stderr.toString() || result.stdout.toString());
   process.exit(result.exitCode ?? 1);
