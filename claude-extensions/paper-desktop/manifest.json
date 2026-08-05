@@ -42,13 +42,7 @@
     "entry_point": "${HOME}/.paper/bin/paper",
     "mcp_config": {
       "command": "${HOME}/.paper/bin/paper",
-      "args": ["mcp"],
-      "platform_overrides": {
-        "win32": {
-          "command": "cmd",
-          "args": ["/c", "%USERPROFILE%/.paper/bin/paper", "mcp"]
-        }
-      }
+      "args": ["mcp"]
     }
   },
   "compatibility": {
