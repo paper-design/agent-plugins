@@ -1,7 +1,7 @@
 {
   "name": "paper-desktop",
   "displayName": "Paper",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Design on a canvas that Cursor can read and write to — built on web standards.",
   "author": {
     "name": "Paper",
