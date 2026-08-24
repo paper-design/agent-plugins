@@ -1,0 +1,8 @@
+{
+  "name": "@paper/claude-desktop-mcpb",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "pack": "bun ./scripts/pack.ts"
+  }
+}

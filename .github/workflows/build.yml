@@ -17,3 +17,5 @@ jobs:
       - run: bun install
 
       - run: bun run build
+
+      - run: bun ./scripts/validate-mcpb-artifact.mjs

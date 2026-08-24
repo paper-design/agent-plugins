@@ -25,3 +25,13 @@ Are we missing one, you have feedback for us, or just want to chat? Join us on o
 ```sh
 /plugin install paper-desktop@paper
 ```
+
+## Claude Desktop
+
+Pack the config-only MCPB extension, then open or drag `claude-extensions/paper-desktop/dist/paper.mcpb` into Claude Desktop → Extensions:
+
+```sh
+bun run pack:mcpb
+```
+
+Requires Paper Desktop installed and opened once (so `~/.paper/bin/paper` exists). See [`claude-extensions/paper-desktop`](claude-extensions/paper-desktop).

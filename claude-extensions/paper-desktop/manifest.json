@@ -1,0 +1,53 @@
+{
+  "$schema": "https://raw.githubusercontent.com/anthropics/mcpb/main/schemas/mcpb-manifest-v0.4.schema.json",
+  "manifest_version": "0.4",
+  "name": "paper",
+  "display_name": "Paper",
+  "version": "0.1.0",
+  "description": "Design on a canvas that Claude can read and write to — built on web standards.",
+  "author": {
+    "name": "Paper",
+    "email": "team@paper.design",
+    "url": "https://paper.design"
+  },
+  "homepage": "https://paper.design",
+  "documentation": "https://paper.design/docs/mcp",
+  "support": "mailto:team@paper.design",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/paper-design/agent-plugins"
+  },
+  "license": "MIT",
+  "privacy_policies": ["https://paper.design/privacy"],
+  "icon": "assets/logo@512w.png",
+  "screenshots": [
+    "assets/barley-layout.png",
+    "assets/barley-feedback.png",
+    "assets/barley-responsive-frames.png"
+  ],
+  "keywords": [
+    "paper",
+    "design",
+    "ui",
+    "canvas",
+    "html",
+    "css",
+    "design-to-code",
+    "code-to-design",
+    "mcp",
+    "design-system"
+  ],
+  "server": {
+    "type": "binary",
+    "entry_point": "${HOME}/.paper/bin/paper",
+    "mcp_config": {
+      "command": "${HOME}/.paper/bin/paper",
+      "args": ["mcp"]
+    }
+  },
+  "compatibility": {
+    "claude_desktop": ">=0.1.0",
+    "platforms": ["darwin", "win32", "linux"]
+  },
+  "tools_generated": true
+}
