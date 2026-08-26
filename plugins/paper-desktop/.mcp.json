@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "paper": {
-      "command": "${env:HOME}/.paper/bin/paper",
+      "command": "${HOME}/.paper/bin/paper",
       "args": ["mcp"]
     }
   }

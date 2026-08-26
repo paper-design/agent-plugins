@@ -1,7 +1,7 @@
 {
   "name": "paper-desktop",
   "displayName": "Paper",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Design on a canvas that Cursor can read and write to — built on web standards.",
   "author": {
     "name": "Paper",
@@ -9,5 +9,6 @@
   },
   "license": "MIT",
   "keywords": ["cursor", "plugin", "mcp"],
-  "logo": "./assets/logo.svg"
+  "logo": "./assets/logo.svg",
+  "mcpServers": "./mcp.json"
 }
