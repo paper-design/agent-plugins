@@ -1,6 +1,6 @@
 {
   "name": "paper-desktop",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Design on a canvas that Claude can read and write to — built on web standards.",
   "author": {
     "name": "Paper",
@@ -21,5 +21,5 @@
     "mcp",
     "design-system"
   ],
-  "mcpServers": "./mcp.json"
+  "mcpServers": "./mcp.claude.json"
 }
