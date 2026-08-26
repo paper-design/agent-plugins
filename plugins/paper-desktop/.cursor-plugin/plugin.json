@@ -10,5 +10,5 @@
   "license": "MIT",
   "keywords": ["cursor", "plugin", "mcp"],
   "logo": "./assets/logo.svg",
-  "mcpServers": "./mcp.json"
+  "mcpServers": "./mcp.cursor.json"
 }
