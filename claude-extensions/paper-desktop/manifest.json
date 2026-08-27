@@ -1,9 +1,9 @@
 {
   "$schema": "https://raw.githubusercontent.com/anthropics/mcpb/main/schemas/mcpb-manifest-v0.4.schema.json",
   "manifest_version": "0.4",
-  "name": "paper",
+  "name": "paper-desktop",
   "display_name": "Paper",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Design on a canvas that Claude can read and write to — built on web standards.",
   "author": {
     "name": "Paper",
@@ -19,7 +19,7 @@
   },
   "license": "MIT",
   "privacy_policies": ["https://paper.design/privacy"],
-  "icon": "assets/logo@512w.png",
+  "icon": "assets/logo@1024w.png",
   "screenshots": [
     "assets/barley-layout.png",
     "assets/barley-feedback.png",
