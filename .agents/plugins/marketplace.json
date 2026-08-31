@@ -1,0 +1,20 @@
+{
+  "name": "paper",
+  "interface": {
+    "displayName": "Paper"
+  },
+  "plugins": [
+    {
+      "name": "paper-desktop",
+      "source": {
+        "source": "local",
+        "path": "./plugins/paper-desktop"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Design"
+    }
+  ]
+}
