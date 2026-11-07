@@ -21,7 +21,7 @@ No desktop install is required: everything runs through the remote server.
 This folder is a portable [Agent Plugins](https://agent-plugins.org) package:
 
 - `plugin.json`: identity and listing metadata (OpenAI-specific fields under `extensions.com.openai`).
-- `mcp.json`: the remote MCP server and its OAuth settings. No secrets live here.
+- `mcp.json`: the remote MCP server, strictly per the Agent Plugins schema. OAuth is not declared here: Codex's parser rejects servers with extra keys, and clients discover the authorization server from the MCP endpoint itself (401 + `resource_metadata`). Pick OAuth in the portal's Connect panel when submitting.
 - `assets/`: listing icon.
 
 Run `bun run pack:chatgpt` from the repository root to produce the ZIP uploaded to the OpenAI plugin submission portal.

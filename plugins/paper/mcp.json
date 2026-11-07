@@ -3,17 +3,7 @@
   "mcpServers": {
     "paper": {
       "type": "streamable-http",
-      "url": "https://mcp.paper.design",
-      "extensions": {
-        "com.openai": {
-          "auth": {
-            "type": "oauth",
-            "client": {
-              "mode": "cimd"
-            }
-          }
-        }
-      }
+      "url": "https://mcp.paper.design"
     }
   }
 }

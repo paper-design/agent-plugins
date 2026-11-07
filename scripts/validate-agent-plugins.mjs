@@ -305,24 +305,17 @@ function validateMcpConfig(pluginDir, label) {
   const mcp = loadJSON(mcpPath, `${label} mcp.json`);
   if (!mcp) return;
 
-  // The 1.0.0 MCP schema forbids unknown server keys, but OpenAI documents its auth settings
-  // under each server's extensions["com.openai"]. Validate the portable shape with that
-  // namespace set aside, then check the OpenAI settings separately.
-  const servers = mcp.mcpServers ?? {};
-  const portableOnly = {
-    ...mcp,
-    mcpServers: Object.fromEntries(
-      Object.entries(servers).map(([name, server]) => {
-        const { extensions, ...rest } = server;
-        return [name, rest];
-      })
-    ),
-  };
-  if (!validateMcpSchema(portableOnly)) {
+  // Strict schema validation on purpose. OpenAI's docs show auth settings under a server's
+  // extensions["com.openai"], but Codex's Agent Plugins parser deserializes servers with
+  // deny_unknown_fields and drops any server carrying extra keys, so a Codex install would
+  // end up with no Paper tools. OAuth is discovered from the server at connect time instead
+  // (401 + resource_metadata), and the submission portal exposes the auth method itself.
+  if (!validateMcpSchema(mcp)) {
     fail(`${label}: mcp.json failed schema validation:`);
     reportSchemaErrors(label, validateMcpSchema);
   }
 
+  const servers = mcp.mcpServers ?? {};
   const serverNames = Object.keys(servers);
   if (serverNames.length !== 1) {
     warn(`${label}: mcp.json declares ${serverNames.length} servers; the portal connects one per plugin and plugin-level review cases require exactly one`);
@@ -337,35 +330,9 @@ function validateMcpConfig(pluginDir, label) {
     if (typeof server.url === "string" && !isHttpsUrl(server.url)) {
       fail(`${serverLabel}: url must be a public HTTPS endpoint — got "${server.url}"`);
     }
+    // Also what a fixed credential would look like, and credentials never belong in the package
     if (server.headers !== undefined && Object.keys(server.headers).length > 0) {
       fail(`${serverLabel}: public submission rejects nonempty headers`);
-    }
-
-    const auth = server.extensions?.["com.openai"]?.auth;
-    if (auth === undefined) {
-      warn(`${serverLabel}: no extensions["com.openai"].auth declared; the portal will treat the server as unauthenticated`);
-      continue;
-    }
-    if (!["none", "oauth", "mixed", "api_key"].includes(auth.type)) {
-      fail(`${serverLabel}: auth.type must be none, oauth, mixed, or api_key — got "${auth.type}"`);
-    }
-    if (auth.type === "api_key") {
-      fail(`${serverLabel}: the submission portal has no connection flow for api_key auth`);
-    }
-    if (auth.clientSecret !== undefined || auth.client?.clientSecret !== undefined) {
-      fail(`${serverLabel}: clientSecret must not be in the package; enter it in the portal`);
-    }
-    const client = auth.client;
-    if (client !== undefined) {
-      if (!["provided", "dcr", "cimd"].includes(client.mode)) {
-        fail(`${serverLabel}: auth.client.mode must be provided, dcr, or cimd — got "${client.mode}"`);
-      }
-      if (client.mode === "provided" && typeof client.clientId !== "string") {
-        fail(`${serverLabel}: auth.client.clientId is required for a provided client`);
-      }
-      if (client.mode !== "provided" && client.clientId !== undefined) {
-        fail(`${serverLabel}: auth.client.clientId is only allowed for a provided client`);
-      }
     }
   }
 }
