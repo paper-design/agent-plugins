@@ -34,7 +34,7 @@
         "category": "Design",
         "capabilities": ["Read", "Write"],
         "websiteURL": "https://paper.design",
-        "supportURL": "https://paper.design/TODO-support-page",
+        "supportURL": "https://paper.design/support",
         "privacyPolicyURL": "https://paper.design/legal/privacy",
         "termsOfServiceURL": "https://paper.design/legal/tos",
         "defaultPrompt": [
