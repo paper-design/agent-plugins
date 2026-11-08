@@ -3,8 +3,9 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "build": "bun ./scripts/validate-cursor-schema.mjs && bun ./scripts/validate-cursor-structure.mjs && bun ./scripts/validate-codex.mjs && bun ./scripts/validate-mcpb.mjs && bun run pack:mcpb",
+    "build": "bun ./scripts/validate-cursor-schema.mjs && bun ./scripts/validate-cursor-structure.mjs && bun ./scripts/validate-codex.mjs && bun ./scripts/validate-agent-plugins.mjs && bun ./scripts/validate-mcpb.mjs && bun run pack:mcpb && bun run pack:chatgpt",
     "pack:mcpb": "bun ./claude-extensions/paper-desktop/scripts/pack.ts",
+    "pack:chatgpt": "bun ./scripts/pack-chatgpt.ts",
     "test": "bun run build"
   },
   "devDependencies": {

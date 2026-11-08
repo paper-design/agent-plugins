@@ -152,8 +152,18 @@ const MAX_DEFAULT_PROMPT_COUNT = 3;
 const MAX_DEFAULT_PROMPT_LENGTH = 128;
 
 function validatePluginManifest(pluginDir, marketplaceName) {
-  const manifestPath = resolve(pluginDir, ".codex-plugin", "plugin.json");
   const label = `Plugin "${marketplaceName}"`;
+
+  // Portable Agent Plugins packages keep plugin.json at the root, with the OpenAI
+  // overlay (interface, skills, ...) under extensions["com.openai"]. Codex reads
+  // that in place of .codex-plugin/plugin.json when present.
+  const portableManifestPath = resolve(pluginDir, "plugin.json");
+  if (existsSync(portableManifestPath)) {
+    validatePortablePluginManifest(pluginDir, label, marketplaceName);
+    return;
+  }
+
+  const manifestPath = resolve(pluginDir, ".codex-plugin", "plugin.json");
   const manifest = loadJSON(manifestPath, `${label} manifest`);
   if (!manifest) return;
 
@@ -193,6 +203,46 @@ function validatePluginManifest(pluginDir, marketplaceName) {
 
   // Validate skills
   validateSkills(pluginDir, label, manifest.skills);
+}
+
+function validatePortablePluginManifest(pluginDir, label, marketplaceName) {
+  const manifest = loadJSON(resolve(pluginDir, "plugin.json"), `${label} manifest`);
+  if (!manifest) return;
+
+  if (manifest.name !== marketplaceName) {
+    fail(
+      `${label}: marketplace name does not match plugin.json name "${manifest.name}"`
+    );
+  }
+
+  // Portable packages discover components from fixed paths, so the package must
+  // ship at least one of them to do anything.
+  const hasMcpConfig = existsSync(resolve(pluginDir, "mcp.json"));
+  const hasSkills = existsSync(resolve(pluginDir, "skills"));
+  if (!hasMcpConfig && !hasSkills) {
+    fail(`${label}: portable package has neither mcp.json nor a skills/ directory`);
+  }
+
+  const openai = manifest.extensions?.["com.openai"];
+  if (openai === undefined) {
+    warn(`${label}: no extensions["com.openai"] overlay; Codex will derive listing text from root metadata`);
+    return;
+  }
+
+  // Portable packages must not redeclare the fixed component paths in the overlay
+  for (const field of ["skills", "mcpServers"]) {
+    if (openai[field] !== undefined) {
+      fail(
+        `${label}: extensions["com.openai"].${field} is ignored for portable packages; use the root skills/ or mcp.json instead`
+      );
+    }
+  }
+
+  if (openai.interface) {
+    validatePluginInterface(pluginDir, label, openai.interface);
+  }
+
+  validateSkills(pluginDir, label, undefined);
 }
 
 function validatePluginInterface(pluginDir, label, iface) {
