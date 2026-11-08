@@ -3,11 +3,14 @@
  * Packs the portable `plugins/paper` package into the ZIP uploaded to the OpenAI plugin
  * submission portal (ChatGPT + Codex directory).
  *
- * Only the files the manifest needs are staged: plugin.json, mcp.json, README.md, and the
- * assets plugin.json references. Timestamps and modes are normalized so rebuilds are
- * bit-identical, matching the .mcpb pack script.
+ * Only what the portal reads is staged: plugin.json, mcp.json, the icons plugin.json
+ * references, and skills/ if the plugin has one (portable packages discover it by path).
+ * The README is for people browsing the repo; the listing text comes from plugin.json.
+ * Timestamps and modes are normalized so rebuilds are bit-identical, matching the .mcpb
+ * pack script.
  */
 import { chmod, cp, mkdir, readdir, rm, stat, utimes } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { $ } from "bun";
@@ -39,7 +42,10 @@ const assetPaths = iconFields
   .map((field) => iface[field])
   .filter((value): value is string => typeof value === "string");
 
-const files = ["plugin.json", "mcp.json", "README.md", ...assetPaths];
+const files = ["plugin.json", "mcp.json", ...assetPaths];
+if (existsSync(join(pluginDir, "skills"))) {
+  files.push("skills");
+}
 
 async function normalizeStaging(dir: string) {
   await chmod(dir, DIR_MODE);
@@ -67,7 +73,7 @@ for (const rel of files) {
   const src = join(pluginDir, rel);
   const dest = join(stageDir, rel);
   await mkdir(dirname(dest), { recursive: true });
-  await cp(src, dest);
+  await cp(src, dest, { recursive: true });
 }
 
 await normalizeStaging(stageDir);
