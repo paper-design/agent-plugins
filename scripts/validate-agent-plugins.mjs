@@ -83,6 +83,20 @@ const LIMITS = {
   capabilityLength: 120,
 };
 const REQUIRED_LISTING_URLS = ["websiteURL", "supportURL", "privacyPolicyURL", "termsOfServiceURL"];
+// Every category in use across OpenAI's curated catalog (github.com/openai/plugins); the dashboard
+// rejects anything else with "Select a valid category". Design tools (Figma, Canva, Adobe) use Creativity.
+const DASHBOARD_CATEGORIES = new Set([
+  "Developer Tools",
+  "Productivity",
+  "Creativity",
+  "Communication",
+  "Education & Research",
+  "Data & Analytics",
+  "Finance",
+  "Security",
+  "Scientific Research",
+  "Business & Operations",
+]);
 const REQUIRED_POSITIVE_CASES = 5;
 const REQUIRED_NEGATIVE_CASES = 3;
 const MIN_ICON_PX = 48;
@@ -189,6 +203,10 @@ function validateInterface(pluginDir, label, iface) {
 
   if (typeof iface.category !== "string" || iface.category.length === 0) {
     fail(`${label}: interface.category is required`);
+  } else if (!DASHBOARD_CATEGORIES.has(iface.category)) {
+    fail(
+      `${label}: interface.category "${iface.category}" is not a dashboard category; use one of: ${[...DASHBOARD_CATEGORIES].join(", ")}`
+    );
   }
 
   if (iface.capabilities !== undefined) {

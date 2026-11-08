@@ -29,9 +29,9 @@
       "interface": {
         "displayName": "Paper",
         "shortDescription": "Design UI on a live canvas",
-        "longDescription": "Paper is a professional design tool built on HTML and CSS. With this plugin, ChatGPT can read your Paper files — structure, styles, screenshots, and text — and write back to the canvas in real time. Use it to sketch new screens from a prompt, iterate on existing designs, generate UI from a brief or design system, export artboards, and keep design work moving without leaving the conversation.\n\nSign in with your Paper account to connect. ChatGPT can only access files that your account can access.",
+        "longDescription": "Paper is a professional design tool built on HTML and CSS. With this plugin, ChatGPT can read your Paper files and write back to the canvas in real time. Use it to sketch new screens from a prompt, iterate on existing designs, generate UI from a brief or design system, and export artboards.\n\nSign in with your Paper account to connect. ChatGPT can only access files that your account can access.",
         "developerName": "Paper",
-        "category": "Design",
+        "category": "Creativity",
         "capabilities": ["Read", "Write"],
         "websiteURL": "https://paper.design",
         "supportURL": "https://paper.design/support",
