@@ -48,6 +48,8 @@ function loadJSON(path, context) {
   }
 }
 
+// Verbatim snapshots of https://agent-plugins.org/schemas/1.0.0/{plugin,mcp}.schema.json, the version
+// our manifests' $schema names (and the only one Codex accepts). Re-download them if that URL ever moves.
 const ajv = new Ajv2020({ allErrors: true, strict: false });
 addFormats(ajv);
 const validatePluginSchema = ajv.compile(
