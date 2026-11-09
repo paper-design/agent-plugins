@@ -1,8 +1,8 @@
 {
   "name": "paper-desktop",
-  "displayName": "Paper",
-  "version": "0.2.2",
-  "description": "Design on a canvas that Cursor can read and write to — built on web standards.",
+  "displayName": "Paper Desktop",
+  "version": "0.2.3",
+  "description": "Design on a canvas that Cursor can read and write to — built on web standards. Connects to Paper Desktop running on this machine: the fastest, most reliable way to use Paper from the Cursor IDE. Running in the cloud or without the desktop app? Use the Paper (remote) plugin.",
   "author": {
     "name": "Paper",
     "email": "team@paper.design"

@@ -1,0 +1,16 @@
+{
+  "name": "paper",
+  "displayName": "Paper (remote)",
+  "version": "1.0.0",
+  "description": "Paper's hosted MCP server, for Grok Bot, cloud agents, and Cursor without Paper Desktop. If you have Paper Desktop installed, use the Paper Desktop plugin instead: it is faster and works on the file you have open.",
+  "author": {
+    "name": "Paper",
+    "email": "team@paper.design"
+  },
+  "homepage": "https://paper.design",
+  "repository": "https://github.com/paper-design/agent-plugins",
+  "license": "MIT",
+  "keywords": ["cursor", "grok-bot", "plugin", "mcp", "design", "remote"],
+  "logo": "./assets/logo.png",
+  "mcpServers": "./mcp.cursor.json"
+}
