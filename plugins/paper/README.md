@@ -18,10 +18,12 @@ No desktop install is required: everything runs through the remote server.
 
 **Package layout**
 
-This folder is a portable [Agent Plugins](https://agent-plugins.org) package:
+This folder uses the Codex plugin layout, the same one every plugin in OpenAI's curated catalog ships:
 
-- `plugin.json`: identity and listing metadata (OpenAI-specific fields under `extensions.com.openai`).
-- `mcp.json`: the remote MCP server, strictly per the Agent Plugins schema. OAuth is not declared here: Codex's parser rejects servers with extra keys, and clients discover the authorization server from the MCP endpoint itself (401 + `resource_metadata`). Pick OAuth in the portal's Connect panel when submitting.
+- `.codex-plugin/plugin.json`: identity and listing metadata (`interface`), with review test cases under `extensions.com.openai`.
+- `.mcp.json`: the remote MCP server. OAuth is discovered from the server itself (401 + `resource_metadata`); nothing secret lives here.
 - `assets/`: listing icon.
 
-Run `bun run pack:chatgpt` from the repository root to produce the ZIP uploaded to the OpenAI plugin submission portal. The ZIP contains only `plugin.json`, `mcp.json`, and the referenced icons; this README is for the repo, not the listing.
+We deliberately don't use the portable Agent Plugins layout (root `plugin.json` + `mcp.json`): Codex applies an 8 KB per-tool / 64 KB total budget to servers declared that way and silently hides tools past it, which drops Paper's write tools. The Codex layout has no such budget. See openai/codex#44308.
+
+Run `bun run pack:chatgpt` from the repository root to produce the ZIP uploaded to the OpenAI plugin submission portal. The ZIP contains only the manifest, `.mcp.json`, and the referenced icons; this README is for the repo, not the listing.

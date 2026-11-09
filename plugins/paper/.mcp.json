@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "paper": {
+      "type": "http",
+      "url": "https://mcp.paper.design",
+      "oauth_resource": "https://mcp.paper.design"
+    }
+  }
+}

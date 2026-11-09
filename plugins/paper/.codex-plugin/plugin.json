@@ -1,5 +1,4 @@
 {
-  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "paper",
   "version": "1.0.0",
   "description": "Design on a canvas that ChatGPT can read and write to — built on web standards.",
@@ -24,31 +23,32 @@
     "mcp",
     "design-system"
   ],
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Paper",
+    "shortDescription": "Design, share, ship",
+    "longDescription": "Paper is a professional design tool built on HTML and CSS. With this plugin, ChatGPT can read your Paper files and write back to the canvas in real time. Use it to sketch new screens from a prompt, iterate on existing designs, generate UI from a brief or design system, and export artboards.\n\nSign in with your Paper account to connect. ChatGPT can only access files that your account can access.",
+    "developerName": "Paper",
+    "category": "Creativity",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://paper.design",
+    "supportURL": "https://paper.design/support",
+    "privacyPolicyURL": "https://paper.design/legal/privacy",
+    "termsOfServiceURL": "https://paper.design/legal/tos",
+    "defaultPrompt": [
+      "Design a settings page for a mobile app in Paper",
+      "Take a screenshot of my selected artboard in Paper and suggest layout improvements",
+      "Create a design system sticker sheet in Paper with my brand colors and type scale"
+    ],
+    "brandColor": "#81ADEC",
+    "composerIcon": "./assets/logo.png",
+    "logo": "./assets/logo.png"
+  },
   "extensions": {
     "com.openai": {
-      "interface": {
-        "displayName": "Paper",
-        "shortDescription": "Design, share, ship",
-        "longDescription": "Paper is a professional design tool built on HTML and CSS. With this plugin, ChatGPT can read your Paper files and write back to the canvas in real time. Use it to sketch new screens from a prompt, iterate on existing designs, generate UI from a brief or design system, and export artboards.\n\nSign in with your Paper account to connect. ChatGPT can only access files that your account can access.",
-        "developerName": "Paper",
-        "category": "Creativity",
-        "capabilities": [
-          "Read",
-          "Write"
-        ],
-        "websiteURL": "https://paper.design",
-        "supportURL": "https://paper.design/support",
-        "privacyPolicyURL": "https://paper.design/legal/privacy",
-        "termsOfServiceURL": "https://paper.design/legal/tos",
-        "defaultPrompt": [
-          "Design a settings page for a mobile app in Paper",
-          "Take a screenshot of my selected artboard in Paper and suggest layout improvements",
-          "Create a design system sticker sheet in Paper with my brand colors and type scale"
-        ],
-        "brandColor": "#81ADEC",
-        "composerIcon": "./assets/logo.png",
-        "logo": "./assets/logo.png"
-      },
       "review": {
         "test_cases": {
           "positive": [
