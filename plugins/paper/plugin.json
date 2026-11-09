@@ -54,7 +54,7 @@
           "positive": [
             {
               "description": "Read the structure of a Paper file from its URL",
-              "prompt": "Open this Paper file and tell me what artboards it has: https://app.paper.design/file/<test-file-id>",
+              "prompt": "Open this Paper file and tell me what artboards it has: https://app.paper.design/file/01M6WX86NBRJJXG66VMFS3R7QN",
               "tools_triggered": "open_file, get_basic_info",
               "expected_behavior": "Opens the file and lists its pages and artboards with their names and dimensions."
             },
@@ -72,15 +72,15 @@
             },
             {
               "description": "Edit text in an existing design",
-              "prompt": "Change the heading on the login screen in my Paper file to say 'Welcome back'.",
-              "tools_triggered": "find_nodes, set_text_content, finish_working_on_nodes",
-              "expected_behavior": "The heading text node is updated to 'Welcome back' and no other content changes."
+              "prompt": "Change the heading on the login screen in my Paper file to say 'Welcome back', and rename that layer to 'Heading'.",
+              "tools_triggered": "find_nodes, set_text_content, rename_nodes, finish_working_on_nodes",
+              "expected_behavior": "The heading text node reads 'Welcome back' and its layer is named 'Heading'; no other content changes."
             },
             {
-              "description": "Inspect styles for handoff",
-              "prompt": "What are the exact colors, font sizes, and spacing used by the primary button on the login screen in my Paper file?",
-              "tools_triggered": "find_nodes, get_computed_styles",
-              "expected_behavior": "Reports the button's computed values (colors, font size, padding, radius) read from the design rather than guessed from a screenshot."
+              "description": "Restyle an element",
+              "prompt": "On the login screen in my Paper file, make the primary button's background #81ADEC with a 12px corner radius, then show me the result.",
+              "tools_triggered": "find_nodes, update_styles, get_screenshot, finish_working_on_nodes",
+              "expected_behavior": "The button's background color and border radius are updated on the canvas, confirmed with a screenshot."
             }
           ],
           "negative": [
