@@ -9,6 +9,6 @@
   },
   "license": "MIT",
   "keywords": ["cursor", "plugin", "mcp"],
-  "logo": "./assets/logo.svg",
+  "logo": "./assets/logo@1024w.png",
   "mcpServers": "./mcp.cursor.json"
 }
