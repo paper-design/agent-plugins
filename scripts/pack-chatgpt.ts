@@ -3,9 +3,9 @@
  * Packs the portable `plugins/paper` package into the ZIP uploaded to the OpenAI plugin
  * submission portal (ChatGPT + Codex directory).
  *
- * Only what the portal reads is staged: plugin.json, mcp.json, the icons plugin.json
- * references, and skills/ if the plugin has one (portable packages discover it by path).
- * The README is for people browsing the repo; the listing text comes from plugin.json.
+ * Only what the portal reads is staged: .codex-plugin/plugin.json, .mcp.json, the icons the
+ * manifest references, and skills/ if the plugin has one. The README is for people browsing
+ * the repo; the listing text comes from the manifest's interface.
  * Timestamps and modes are normalized so rebuilds are bit-identical, matching the .mcpb
  * pack script.
  */
@@ -26,15 +26,17 @@ const distDir = join(repoRoot, "dist");
 const stageDir = join(distDir, "stage-chatgpt");
 const outFile = join(distDir, "paper-chatgpt-plugin.zip");
 
-type Interface = Record<string, unknown>;
 type Manifest = {
   name: string;
   version?: string;
-  extensions?: { "com.openai"?: { interface?: Interface } };
+  mcpServers?: string;
+  interface?: Record<string, unknown>;
 };
 
-const manifest = (await Bun.file(join(pluginDir, "plugin.json")).json()) as Manifest;
-const iface = manifest.extensions?.["com.openai"]?.interface ?? {};
+const manifestPath = ".codex-plugin/plugin.json";
+const manifest = (await Bun.file(join(pluginDir, manifestPath)).json()) as Manifest;
+const iface = manifest.interface ?? {};
+const mcpPath = (manifest.mcpServers ?? "./.mcp.json").replace(/^\.\//, "");
 
 // Every icon the listing references must ship in the ZIP
 const iconFields = ["logo", "logoDark", "composerIcon", "composerIconDark"];
@@ -42,7 +44,7 @@ const assetPaths = iconFields
   .map((field) => iface[field])
   .filter((value): value is string => typeof value === "string");
 
-const files = ["plugin.json", "mcp.json", ...assetPaths];
+const files = [manifestPath, mcpPath, ...assetPaths];
 if (existsSync(join(pluginDir, "skills"))) {
   files.push("skills");
 }

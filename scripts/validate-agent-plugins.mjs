@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 
 /**
- * Validates portable Agent Plugins packages (root plugin.json + mcp.json) against the
- * published 1.0.0 schemas, then applies the limits OpenAI's plugin submission portal
- * enforces on the extensions["com.openai"] listing data
+ * Validates plugins prepared for OpenAI's plugin directory against the limits the submission
+ * portal enforces on listing metadata, review cases, icons and the MCP server declaration
  * (https://developers.openai.com/plugins/deploy/submission).
  *
- * Plugins are discovered from .agents/plugins/marketplace.json; entries without a root
- * plugin.json (Codex compatibility layout) are left to validate-codex.mjs.
+ * Plugins are discovered from .agents/plugins/marketplace.json; only those with a review block
+ * are checked. Both package layouts are read: the Codex layout (.codex-plugin/plugin.json +
+ * .mcp.json), and the portable Agent Plugins layout (plugin.json + mcp.json), which is also
+ * validated against the published 1.0.0 schemas.
  */
 
 import { readFileSync, existsSync, openSync, readSync, closeSync } from "fs";
@@ -319,18 +320,54 @@ function validateReview(label, review) {
   }
 }
 
-function validateMcpConfig(pluginDir, label) {
-  const mcpPath = resolve(pluginDir, "mcp.json");
-  if (!existsSync(mcpPath)) return;
-  const mcp = loadJSON(mcpPath, `${label} mcp.json`);
+/**
+ * Reads a plugin package in either layout and returns the parts the submission checks need.
+ *
+ * Codex layout (`.codex-plugin/plugin.json`, listing fields at root `interface`, servers in `.mcp.json`) is
+ * what every plugin in OpenAI's own catalog ships, and Codex applies no tool budget to it. The portable
+ * Agent Plugins layout (root `plugin.json` + `mcp.json`) is still accepted, but Codex budgets its tools.
+ */
+function loadPackage(pluginDir, label) {
+  const codexManifestPath = resolve(pluginDir, ".codex-plugin/plugin.json");
+  const portableManifestPath = resolve(pluginDir, "plugin.json");
+
+  if (existsSync(codexManifestPath)) {
+    const manifest = loadJSON(codexManifestPath, `${label} .codex-plugin/plugin.json`);
+    if (!manifest) return null;
+    const mcpRelative = typeof manifest.mcpServers === "string" ? manifest.mcpServers : "./.mcp.json";
+    return {
+      layout: "codex",
+      manifest,
+      iface: manifest.interface,
+      openai: manifest.extensions?.["com.openai"] ?? {},
+      mcpPath: resolve(pluginDir, mcpRelative.replace(/^\.\//, "")),
+    };
+  }
+
+  if (existsSync(portableManifestPath)) {
+    const manifest = loadJSON(portableManifestPath, `${label} plugin.json`);
+    if (!manifest) return null;
+    if (!validatePluginSchema(manifest)) {
+      fail(`${label}: plugin.json failed schema validation:`);
+      reportSchemaErrors(label, validatePluginSchema);
+    }
+    const openai = manifest.extensions?.["com.openai"] ?? {};
+    return { layout: "portable", manifest, iface: openai.interface, openai, mcpPath: resolve(pluginDir, "mcp.json") };
+  }
+
+  return null;
+}
+
+const REMOTE_TRANSPORTS = new Set(["http", "streamable_http", "streamable-http"]);
+
+function validateMcpConfig(pkg, label) {
+  if (!existsSync(pkg.mcpPath)) return;
+  const mcp = loadJSON(pkg.mcpPath, `${label} ${relative(root, pkg.mcpPath)}`);
   if (!mcp) return;
 
-  // Strict schema validation on purpose. OpenAI's docs show auth settings under a server's
-  // extensions["com.openai"], but Codex's Agent Plugins parser deserializes servers with
-  // deny_unknown_fields and drops any server carrying extra keys, so a Codex install would
-  // end up with no Paper tools. OAuth is discovered from the server at connect time instead
-  // (401 + resource_metadata), and the submission portal exposes the auth method itself.
-  if (!validateMcpSchema(mcp)) {
+  // The portable schema forbids unknown server keys, and Codex's portable parser drops any server carrying
+  // them, so portable packages are validated strictly. The Codex layout has no published schema.
+  if (pkg.layout === "portable" && !validateMcpSchema(mcp)) {
     fail(`${label}: mcp.json failed schema validation:`);
     reportSchemaErrors(label, validateMcpSchema);
   }
@@ -338,16 +375,16 @@ function validateMcpConfig(pluginDir, label) {
   const servers = mcp.mcpServers ?? {};
   const serverNames = Object.keys(servers);
   if (serverNames.length !== 1) {
-    warn(`${label}: mcp.json declares ${serverNames.length} servers; the portal connects one per plugin and plugin-level review cases require exactly one`);
+    warn(`${label}: ${serverNames.length} MCP servers declared; the portal connects one per plugin and plugin-level review cases require exactly one`);
   }
 
   for (const [name, server] of Object.entries(servers)) {
     const serverLabel = `${label} server "${name}"`;
 
-    if (server.type !== "streamable-http") {
-      fail(`${serverLabel}: public submission requires a remote "streamable-http" server — got "${server.type}"`);
+    if (!REMOTE_TRANSPORTS.has(server.type)) {
+      fail(`${serverLabel}: public submission requires a remote HTTP server — got type "${server.type}"`);
     }
-    if (typeof server.url === "string" && !isHttpsUrl(server.url)) {
+    if (typeof server.url !== "string" || !isHttpsUrl(server.url)) {
       fail(`${serverLabel}: url must be a public HTTPS endpoint — got "${server.url}"`);
     }
     // Also what a fixed credential would look like, and credentials never belong in the package
@@ -357,46 +394,42 @@ function validateMcpConfig(pluginDir, label) {
   }
 }
 
-function validatePortablePlugin(pluginDir, marketplaceName) {
+function validateSubmissionPackage(pluginDir, marketplaceName) {
   const label = `Plugin "${marketplaceName}"`;
-  const manifest = loadJSON(resolve(pluginDir, "plugin.json"), `${label} plugin.json`);
-  if (!manifest) return;
+  const pkg = loadPackage(pluginDir, label);
+  if (!pkg) return false;
 
-  if (!validatePluginSchema(manifest)) {
-    fail(`${label}: plugin.json failed schema validation:`);
-    reportSchemaErrors(label, validatePluginSchema);
-  }
+  // Only plugins prepared for the directory carry review cases; the rest aren't held to submission rules
+  if (pkg.openai.review === undefined) return false;
 
+  const { manifest, iface, openai } = pkg;
   if (manifest.name !== marketplaceName) {
-    fail(`${label}: marketplace name does not match plugin.json name "${manifest.name}"`);
+    fail(`${label}: marketplace name does not match manifest name "${manifest.name}"`);
   }
   if (typeof manifest.version !== "string") {
-    warn(`${label}: version is optional in the schema but submissions and updates need an explicit semantic version`);
+    fail(`${label}: version is required for submission and updates`);
+  }
+  if (pkg.layout === "codex") {
+    for (const field of ["description", "author"]) {
+      if (manifest[field] === undefined) fail(`${label}: ${field} is required in the Codex manifest`);
+    }
   }
 
-  const openai = manifest.extensions?.["com.openai"];
-  if (openai === undefined) {
-    warn(`${label}: no extensions["com.openai"]; listing metadata will be derived from root fields`);
+  // App references and lifecycle hooks make a ZIP ineligible for public submission
+  for (const field of ["apps", "hooks"]) {
+    if (manifest[field] !== undefined || openai[field] !== undefined) {
+      fail(`${label}: ${field} is not accepted for public directory submission`);
+    }
+  }
+
+  if (iface === undefined) {
+    fail(`${label}: interface listing metadata is required for submission`);
   } else {
-    // App references and lifecycle hooks make a ZIP ineligible for public submission
-    for (const field of ["apps", "hooks"]) {
-      if (openai[field] !== undefined) {
-        fail(`${label}: extensions["com.openai"].${field} is not accepted for public directory submission`);
-      }
-    }
-    if (openai.interface === undefined) {
-      fail(`${label}: extensions["com.openai"].interface is required for submission`);
-    } else {
-      validateInterface(pluginDir, label, openai.interface);
-    }
-    if (openai.review !== undefined) {
-      validateReview(label, openai.review);
-    } else {
-      warn(`${label}: no review block; test cases and demo recording must be entered in the portal`);
-    }
+    validateInterface(pluginDir, label, iface);
   }
-
-  validateMcpConfig(pluginDir, label);
+  validateReview(label, openai.review);
+  validateMcpConfig(pkg, label);
+  return true;
 }
 
 // --- Main ---
@@ -406,14 +439,11 @@ let validated = 0;
 for (const entry of marketplace?.plugins ?? []) {
   const sourcePath = typeof entry.source === "string" ? entry.source : entry.source?.path;
   if (typeof sourcePath !== "string" || !sourcePath.startsWith("./")) continue;
-  const pluginDir = resolve(root, sourcePath.slice(2));
-  if (!existsSync(resolve(pluginDir, "plugin.json"))) continue;
-  validatePortablePlugin(pluginDir, entry.name);
-  validated++;
+  if (validateSubmissionPackage(resolve(root, sourcePath.slice(2)), entry.name)) validated++;
 }
 
 if (validated === 0) {
-  warn("No portable Agent Plugins packages found in .agents/plugins/marketplace.json");
+  warn("No directory submission packages (plugins with a review block) found in .agents/plugins/marketplace.json");
 }
 
 if (errors > 0) {
