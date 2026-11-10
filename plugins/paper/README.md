@@ -14,7 +14,7 @@ No desktop install is required: everything runs through the remote server.
 **Install**
 
 - ChatGPT / Codex: search for "Paper" in the Plugin Directory and install it, then sign in with your Paper account when prompted. Before it is listed: Plugins, the plus button, Add custom MCP server, URL `https://mcp.paper.design`, OAuth authentication.
-- Cursor / Grok Bot: install **Paper (remote)** from the Cursor Marketplace or Connect Apps. In the Cursor IDE with Paper Desktop installed, prefer the **Paper Desktop** plugin instead; it is faster and acts on the file you have open.
+- Cursor / Grok Bot: install **Paper** from the Cursor Marketplace or Connect Apps. In the Cursor IDE with Paper Desktop installed, prefer the **Paper Desktop** plugin instead; it is faster and acts on the file you have open.
 
 **Package layout**
 

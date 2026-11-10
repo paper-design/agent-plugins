@@ -16,7 +16,7 @@ The `paper` plugin connects to Paper's hosted MCP server (`https://mcp.paper.des
 Two plugins, pick by where the agent runs:
 
 - **Paper Desktop** (`paper-desktop`): for the Cursor IDE with Paper Desktop installed. Talks to the running app over a local MCP server; fastest and most reliable, and it works on the file you have open.
-- **Paper (remote)** (`paper`): for Grok Bot, cloud agents, and Cursor without Paper Desktop. Connects to `https://mcp.paper.design` and signs in with your Paper account.
+- **Paper** (`paper`): for Grok Bot, cloud agents, and Cursor without Paper Desktop. Connects to `https://mcp.paper.design` and signs in with your Paper account.
 
 ```sh
 /add-plugin paper-desktop
@@ -27,7 +27,7 @@ Two plugins, pick by where the agent runs:
 
 ## Grok Bot
 
-Grok Bot runs in the cloud, so only the remote plugin applies. Install **Paper (remote)** from Connect Apps, or tell your bot: "Add this MCP server: https://mcp.paper.design".
+Grok Bot runs in the cloud, so only the remote plugin applies. Install **Paper** from Connect Apps, or tell your bot: "Add this MCP server: https://mcp.paper.design".
 
 ## Claude Code
 
