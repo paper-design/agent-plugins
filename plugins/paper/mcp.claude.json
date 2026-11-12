@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "paper": {
+      "type": "http",
+      "url": "https://mcp.paper.design"
+    }
+  }
+}

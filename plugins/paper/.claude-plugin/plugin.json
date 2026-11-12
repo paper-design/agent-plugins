@@ -1,0 +1,27 @@
+{
+  "name": "paper",
+  "version": "1.0.0",
+  "description": "Paper's hosted MCP server, for Claude Code on the web, cloud sessions, and machines without Paper Desktop. If you have Paper Desktop installed, use the Paper Desktop plugin instead: it is faster and works on the file you have open.",
+  "author": {
+    "name": "Paper",
+    "email": "team@paper.design"
+  },
+  "homepage": "https://paper.design",
+  "repository": "https://github.com/paper-design/agent-plugins",
+  "license": "MIT",
+  "privacyPolicyUrl": "https://paper.design/legal/privacy",
+  "keywords": [
+    "paper",
+    "design",
+    "ui",
+    "canvas",
+    "html",
+    "css",
+    "design-to-code",
+    "code-to-design",
+    "mcp",
+    "design-system",
+    "remote"
+  ],
+  "mcpServers": "./mcp.claude.json"
+}
