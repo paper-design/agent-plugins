@@ -37,10 +37,26 @@ Grok Bot runs in the cloud, so only the remote plugin applies. Install **Paper**
 /plugin marketplace add paper-design/agent-plugins
 ```
 
-**Install the plugin**
+**Install a plugin**
+
+Two plugins, pick by where Claude Code runs:
+
+- **Paper Desktop** (`paper-desktop`): Paper Desktop is installed on the same machine. Talks to the running app over a local MCP server; fastest, and it works on the file you have open.
 
 ```sh
 /plugin install paper-desktop@paper
+```
+
+- **Paper** (`paper`): cloud sessions, remote machines, or no Paper Desktop. Connects to `https://mcp.paper.design`; run `/mcp` after installing to sign in with your Paper account.
+
+```sh
+/plugin install paper@paper
+```
+
+Or add the remote server without the plugin:
+
+```sh
+claude mcp add --transport http paper https://mcp.paper.design
 ```
 
 ## Claude Desktop (Chat)

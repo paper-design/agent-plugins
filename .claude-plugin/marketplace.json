@@ -6,13 +6,18 @@
   },
   "metadata": {
     "description": "Paper connects your teams, agents, code, and data on a single design space built on web standards.",
-    "version": "0.1.0"
+    "version": "0.2.0"
   },
   "plugins": [
     {
       "name": "paper-desktop",
       "source": "./plugins/paper-desktop",
-      "description": "Connect to Paper Desktop using its MCP server."
+      "description": "For Claude Code with Paper Desktop installed: connect to the running app's local MCP server."
+    },
+    {
+      "name": "paper",
+      "source": "./plugins/paper",
+      "description": "For Claude Code without Paper Desktop (cloud sessions, remote machines): connect to Paper's hosted MCP server."
     }
   ]
 }

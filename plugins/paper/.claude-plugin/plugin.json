@@ -1,0 +1,26 @@
+{
+  "name": "paper",
+  "version": "1.0.0",
+  "description": "Paper's hosted MCP server: design on a canvas that Claude can read and write to, no desktop install needed. If you have Paper Desktop installed, use the paper-desktop plugin instead: it is faster and works on the file you have open.",
+  "author": {
+    "name": "Paper",
+    "email": "team@paper.design"
+  },
+  "homepage": "https://paper.design",
+  "repository": "https://github.com/paper-design/agent-plugins",
+  "license": "MIT",
+  "keywords": [
+    "paper",
+    "design",
+    "ui",
+    "canvas",
+    "html",
+    "css",
+    "design-to-code",
+    "code-to-design",
+    "mcp",
+    "design-system",
+    "remote"
+  ],
+  "mcpServers": "./mcp.claude.json"
+}
